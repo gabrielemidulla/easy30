@@ -1,0 +1,63 @@
+{
+  "id": "linear-algebra-example",
+  "title": "Linear Algebra (example)",
+  "language": "en",
+  "concepts": [
+    {
+      "title": "Vectors",
+      "question": "What is a vector, and which two operations make a set of them a vector space?",
+      "answer": "A vector is an element of a vector space: an object that can be added to other vectors and scaled by numbers. In $\\mathbb{R}^n$ it is an ordered list $v=(v_1,\\dots,v_n)$.\n\nThe two operations are\n\n- addition: $u+v=(u_1+v_1,\\dots,u_n+v_n)$\n- scalar multiplication: $\\lambda v=(\\lambda v_1,\\dots,\\lambda v_n)$\n\nThey must satisfy the usual axioms (associativity, commutativity, zero vector, additive inverses, distributivity).",
+      "requires": [],
+      "importance": 3
+    },
+    {
+      "title": "Linear combination",
+      "question": "What is a linear combination of vectors $v_1,\\dots,v_k$?",
+      "answer": "Any vector of the form\n\n$$\\lambda_1 v_1+\\lambda_2 v_2+\\dots+\\lambda_k v_k,\\qquad \\lambda_i\\in\\mathbb{R}.$$\n\nExample: $(5,4)=5\\,(1,0)+4\\,(0,1)$ is a linear combination of $(1,0)$ and $(0,1)$.",
+      "requires": ["Vectors"],
+      "importance": 3
+    },
+    {
+      "title": "Span",
+      "question": "What is the span of a set of vectors, and why is it a subspace?",
+      "answer": "$\\operatorname{span}(v_1,\\dots,v_k)$ is the set of all linear combinations of $v_1,\\dots,v_k$.\n\nIt is a subspace: it contains $0$ (all coefficients zero), and a sum or scalar multiple of linear combinations is again a linear combination.\n\nThe span is the smallest subspace containing the vectors.",
+      "requires": ["Linear combination"],
+      "importance": 2
+    },
+    {
+      "title": "Linear independence",
+      "question": "When are vectors $v_1,\\dots,v_k$ linearly independent?",
+      "answer": "When the only solution of\n\n$$\\lambda_1 v_1+\\dots+\\lambda_k v_k=0$$\n\nis $\\lambda_1=\\dots=\\lambda_k=0$.\n\nEquivalently, no $v_i$ is a linear combination of the others. Example: $(1,0)$ and $(0,1)$ are independent; $(1,2)$ and $(2,4)$ are not, since $2\\,(1,2)-(2,4)=0$.",
+      "requires": ["Linear combination"],
+      "importance": 3
+    },
+    {
+      "title": "Basis",
+      "question": "What is a basis of a vector space?",
+      "answer": "A list of vectors that is linearly independent **and** spans the space.\n\nEvery vector $v$ then has a *unique* expression $v=\\lambda_1 b_1+\\dots+\\lambda_n b_n$; the $\\lambda_i$ are its coordinates.\n\nExample: $(1,0),(0,1)$ is the standard basis of $\\mathbb{R}^2$.",
+      "requires": ["Span", "Linear independence"],
+      "importance": 3
+    },
+    {
+      "title": "Dimension",
+      "question": "How is the dimension of a vector space defined, and why is it well defined?",
+      "answer": "$\\dim V$ is the number of vectors in any basis of $V$.\n\nIt is well defined because all bases of $V$ have the same size (a consequence of the Steinitz exchange lemma: an independent list is never longer than a spanning list).\n\nExample: $\\dim\\mathbb{R}^n=n$.",
+      "requires": ["Basis"],
+      "importance": 3
+    },
+    {
+      "title": "Matrix",
+      "question": "What is a matrix, and how does it act on a vector?",
+      "answer": "An $m\\times n$ matrix $A$ is a rectangular array of numbers. It defines a linear map $\\mathbb{R}^n\\to\\mathbb{R}^m$, $x\\mapsto Ax$, where\n\n$$(Ax)_i=\\sum_{j=1}^n a_{ij}x_j.$$\n\nEquivalently, $Ax$ is the linear combination of the columns of $A$ with coefficients $x_1,\\dots,x_n$.",
+      "requires": ["Vectors", "Linear combination"],
+      "importance": 3
+    },
+    {
+      "title": "Rank",
+      "question": "What is the rank of a matrix and how do you compute it?",
+      "answer": "$\\operatorname{rank}(A)$ is the dimension of the column space (the span of the columns) of $A$; it equals the dimension of the row space.\n\nCompute it by Gaussian elimination: the rank is the number of pivots.\n\nRank-nullity: for $A$ with $n$ columns, $\\operatorname{rank}(A)+\\dim\\ker A=n$.",
+      "requires": ["Matrix", "Dimension"],
+      "importance": 2
+    }
+  ]
+}

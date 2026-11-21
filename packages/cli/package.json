@@ -4,13 +4,26 @@
   "description": "Easy30 CLI: set up a study vault, install agent skills, check your concept graphs",
   "license": "MIT",
   "type": "module",
-  "bin": { "easy30": "./dist/bin.js" },
-  "files": ["dist", "assets"],
-  "scripts": { "build": "tsdown", "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "bin": {
+    "easy30": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "scripts": {
+    "assets": "node scripts/copy-plugin.mjs && node scripts/copy-skills.mjs && node scripts/copy-example.mjs",
+    "build": "pnpm run assets && tsdown",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@easy30/core": "workspace:*",
-    "easy30-mcp": "workspace:*",
-    "commander": "^15.1.0"
+    "commander": "^15.1.0",
+    "easy30-mcp": "workspace:*"
   },
-  "devDependencies": { "tsdown": "^0.23.7" }
+  "devDependencies": {
+    "tsdown": "^0.23.7"
+  }
 }

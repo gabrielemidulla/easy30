@@ -4,14 +4,29 @@
   "description": "MCP server for Easy30: let AI agents build concept graphs, run reviews, practice tests and mock orals in your vault",
   "license": "MIT",
   "type": "module",
-  "bin": { "easy30-mcp": "./dist/bin.js" },
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "files": ["dist"],
-  "scripts": { "build": "tsdown", "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "bin": {
+    "easy30-mcp": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@easy30/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "zod": "^4.6.7"
   },
-  "devDependencies": { "tsdown": "^0.23.7" }
+  "devDependencies": {
+    "tsdown": "^0.23.7"
+  }
 }

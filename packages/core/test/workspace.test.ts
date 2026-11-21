@@ -136,6 +136,9 @@ describe("Workspace", () => {
       rating: 2,
       ref: test.id,
     })
+    await expect(
+      ws.gradeTest({ testId: test.id, source: "test", report: "", results: [] }),
+    ).rejects.toMatchObject({ code: "conflict" })
   })
 
   it("rejects unsafe course ids", async () => {

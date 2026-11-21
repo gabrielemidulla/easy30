@@ -491,6 +491,8 @@ export class Workspace {
     report: string
   }): Promise<PracticeTest> {
     const test = this.test(input.testId)
+    if (test.status === "graded")
+      throw new Easy30Error("conflict", `Test "${test.id}" is already graded`)
     const byId = new Map(test.questions.map((q) => [q.id, q]))
     for (const r of input.results) {
       if (!byId.has(r.questionId))
