@@ -123,6 +123,7 @@ describe("studyPlan", () => {
     requires,
     unresolved: [],
     requirements: [],
+    kind: null,
   })
   const concepts = [
     concept("vectors", 1),

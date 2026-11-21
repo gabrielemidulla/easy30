@@ -298,6 +298,12 @@
   background: var(--text-muted);
 }
 
+.easy30-node-kind {
+  color: var(--text-faint);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
 .easy30-node-course,
 .easy30-node-tag {
   overflow: hidden;

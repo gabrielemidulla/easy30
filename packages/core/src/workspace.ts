@@ -7,6 +7,7 @@ import { appendLog, assertSafeId, isSafeId, logPath, readLog, STATE_DIR } from "
 import { type StudyPlan, skimQueue, studyPlan } from "./planner.js"
 import { type ConceptState, replay } from "./scheduler.js"
 import {
+  type ConceptKind,
   CourseFrontmatterSchema,
   describeError,
   type Grading,
@@ -69,12 +70,14 @@ export interface NewConcept {
   /** Prerequisites: concept ids, titles or paths. */
   requires?: string[]
   importance?: 1 | 2 | 3
+  kind?: ConceptKind
 }
 
 export interface ConceptPatch {
   question?: string
   answer?: string
   importance?: 1 | 2 | 3
+  kind?: ConceptKind
 }
 
 export interface UpsertItem {
@@ -82,6 +85,7 @@ export interface UpsertItem {
   question?: string
   answer?: string
   importance?: 1 | 2 | 3
+  kind?: ConceptKind
   /** Concept ids, titles or paths; titles resolve within the batch and the course first. */
   requires?: string[]
 }
@@ -766,6 +770,7 @@ export class Workspace {
       course: course.id,
       question: input.question?.trim() ?? "",
       importance: input.importance ?? 2,
+      ...(input.kind !== undefined && { kind: input.kind }),
     }
     await this.createFile(path, composeNote(fm, input.answer?.trim() ?? ""))
     await this.touch([path])
@@ -776,6 +781,7 @@ export class Workspace {
     const fm: Record<string, unknown> = {}
     if (patch.question !== undefined) fm.question = patch.question.trim()
     if (patch.importance !== undefined) fm.importance = patch.importance
+    if (patch.kind !== undefined) fm.kind = patch.kind
     if (Object.keys(fm).length === 0 && patch.answer === undefined) return
     await this.fs.update(concept.path, (source) => {
       const withFm = Object.keys(fm).length ? updateFrontmatter(source, fm) : source

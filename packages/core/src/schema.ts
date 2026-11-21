@@ -36,6 +36,17 @@ export const CourseFrontmatterSchema = z.object({
   sources: z.optional(linkList),
 })
 
+/** Where a concept sits between the foundations and the course's big results. */
+export const ConceptKindSchema = z.enum([
+  "axiom",
+  "definition",
+  "theorem",
+  "property",
+  "method",
+  "topic",
+])
+export type ConceptKind = z.infer<typeof ConceptKindSchema>
+
 export const ConceptFrontmatterSchema = z.object({
   easy30: z.literal("concept"),
   id: z.optional(safeId),
@@ -43,6 +54,7 @@ export const ConceptFrontmatterSchema = z.object({
   question: z.optional(z.string()),
   requires: z.optional(linkList),
   importance: z.optional(z.union([z.literal(1), z.literal(2), z.literal(3)])),
+  kind: z.optional(ConceptKindSchema),
 })
 
 export const GradingSchema = z.object({

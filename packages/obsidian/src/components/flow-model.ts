@@ -1,4 +1,4 @@
-import type { CourseView, Inference, Mastery } from "@easy30/core"
+import type { ConceptKind, CourseView, Inference, Mastery } from "@easy30/core"
 
 export const NODE_WIDTH = 188
 export const NODE_HEIGHT = 56
@@ -15,6 +15,7 @@ export type ConceptNodeData = {
   ready: boolean
   external: boolean
   importance: 1 | 2 | 3
+  kind: ConceptKind | null
   due: boolean
   /** Faded because another node is hovered and this one is unrelated to it. */
   dimmed: boolean
@@ -65,6 +66,7 @@ export function toFlowModel(view: CourseView, now: Date = new Date()): FlowModel
     ready: !c.external && ready.has(c.id),
     external: c.external,
     importance: c.importance,
+    kind: c.kind,
     due: !c.external && isDue(c.state.due, now),
     dimmed: false,
   }))

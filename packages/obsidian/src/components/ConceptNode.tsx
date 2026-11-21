@@ -1,3 +1,4 @@
+import type { ConceptKind } from "@easy30/core"
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react"
 import { memo } from "react"
 import type { ConceptNodeData } from "./flow-model"
@@ -15,6 +16,15 @@ function classNames(data: ConceptNodeData): string {
   ]
     .filter(Boolean)
     .join(" ")
+}
+
+const KIND_LABEL: Record<ConceptKind, string> = {
+  axiom: "axiom",
+  definition: "def",
+  theorem: "thm",
+  property: "prop",
+  method: "method",
+  topic: "topic",
 }
 
 function ImportanceDots({ level }: { level: 1 | 2 | 3 }) {
@@ -36,6 +46,7 @@ function ConceptNodeView({ data }: NodeProps<ConceptFlowNode>) {
       </div>
       <div className="easy30-node-meta">
         <ImportanceDots level={data.importance} />
+        {data.kind !== null && <span className="easy30-node-kind">{KIND_LABEL[data.kind]}</span>}
         {data.external && data.courseId !== null && (
           <span className="easy30-node-course">{data.courseId}</span>
         )}

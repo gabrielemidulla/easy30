@@ -210,7 +210,7 @@ describe("review regressions", () => {
     })
     const ws = await Workspace.open(fs)
     const result = await ws.upsertConcepts("g", [
-      { title: "Span", question: "Cos'è lo span?", requires: ["Vettore"] },
+      { title: "Span", question: "Cos'è lo span?", kind: "definition", requires: ["Vettore"] },
       { title: "Base", requires: ["Span", "Missing"] },
       { title: "Vettore", answer: "Un elemento di V.", requires: ["Base"] },
     ])
@@ -222,5 +222,6 @@ describe("review regressions", () => {
     ])
     expect(ws.findConcept("Base", "g")?.requires).toEqual([ws.findConcept("Span", "g")?.id])
     expect(ws.concept("c-v").answer).toBe("Un elemento di V.")
+    expect(ws.findConcept("Span", "g")?.kind).toBe("definition")
   })
 })

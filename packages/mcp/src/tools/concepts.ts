@@ -10,6 +10,12 @@ const importance = z
   .union([z.literal(1), z.literal(2), z.literal(3)])
   .describe("1 = minor, 2 = normal (default), 3 = core")
 
+const kind = z
+  .enum(["axiom", "definition", "theorem", "property", "method", "topic"])
+  .describe(
+    "Where the concept sits: axiom/definition/theorem/property/method, or topic for a composite node",
+  )
+
 const refList = z
   .union([z.string(), z.array(z.string())])
   .transform((v) => (Array.isArray(v) ? v : [v]))
@@ -25,6 +31,7 @@ function conceptSummary(workspace: Workspace, concept: Concept) {
     course: concept.courseId,
     question: concept.question,
     importance: concept.importance,
+    kind: concept.kind,
     requires: concept.requires.map((id) => ({ id, title: titleOf(workspace, id) })),
     unresolved_requires: concept.unresolved,
   }
@@ -100,6 +107,7 @@ export function registerConceptTools(tool: Registrar): void {
               question: z.string().optional(),
               answer: z.string().optional(),
               importance: importance.optional(),
+              kind: kind.optional(),
               requires: z
                 .array(z.string())
                 .optional()
@@ -129,16 +137,26 @@ export function registerConceptTools(tool: Registrar): void {
         question: z.string().optional(),
         answer: z.string().optional().describe("Reference answer, Markdown+LaTeX"),
         importance: importance.optional(),
+        kind: kind.optional(),
       },
     },
-    async ({ concept: ref, title, question, answer, importance: level }, { workspace }) => {
+    async (
+      { concept: ref, title, question, answer, importance: level, kind: k },
+      { workspace },
+    ) => {
       let concept = resolveConcept(workspace, ref)
       if (title !== undefined) concept = await workspace.renameConcept(concept.id, title)
-      if (question !== undefined || answer !== undefined || level !== undefined) {
+      if (
+        question !== undefined ||
+        answer !== undefined ||
+        level !== undefined ||
+        k !== undefined
+      ) {
         concept = await workspace.updateConcept(concept.id, {
           ...(question !== undefined && { question }),
           ...(answer !== undefined && { answer }),
           ...(level !== undefined && { importance: level }),
+          ...(k !== undefined && { kind: k }),
         })
       }
       return conceptSummary(workspace, concept)

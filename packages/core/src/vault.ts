@@ -5,6 +5,7 @@ import { slugify } from "./ids.js"
 import { linkTarget } from "./links.js"
 import {
   ConceptFrontmatterSchema,
+  type ConceptKind,
   CourseFrontmatterSchema,
   describeError,
   TestFrontmatterSchema,
@@ -40,6 +41,7 @@ export interface Concept {
   /** Note body: the reference answer. */
   answer: string
   importance: 1 | 2 | 3
+  kind: ConceptKind | null
   /** Resolved prerequisite concept ids (deduplicated). */
   requires: string[]
   /** `requires` links that point to no concept note (or to several). */
@@ -275,6 +277,7 @@ function resolveConcepts(
       question: fm.question?.trim() ?? "",
       answer: body.trim(),
       importance: fm.importance ?? 2,
+      kind: fm.kind ?? null,
       requires: [],
       unresolved: [],
       requirements: [],

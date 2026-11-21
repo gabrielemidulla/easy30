@@ -33,6 +33,7 @@ requires:                     # prerequisites, as wikilinks to other concept not
   - "[[Combinazione lineare]]"
   - "[[Indipendenza lineare]]"
 importance: 3                 # 1 (minor) … 3 (core), default 2
+kind: definition              # optional: axiom | definition | theorem | property | method | topic
 ---
 Reference answer and explanation, in Markdown with LaTeX ($…$, $$…$$).
 ```

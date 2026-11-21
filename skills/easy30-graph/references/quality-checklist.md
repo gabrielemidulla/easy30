@@ -6,7 +6,8 @@ Run through this before and after sending concepts.
 - [ ] One idea per concept: a definition, a theorem, a method, or a technique. If the answer needs "and also...", split.
 - [ ] Could the professor ask it as a standalone exam question? If not, merge it into its parent.
 - [ ] Merge trivia (notation, one-line remarks) into the concept that uses them.
-- [ ] 20-60 concepts for a typical course; far outside that range means wrong granularity.
+- [ ] The whole course is covered (every book chapter and syllabus topic), from foundations (axioms and primitive notions, never deeper) to capstone results. A full first-year course is typically 150–300 concepts; a short module 30–80.
+- [ ] Every concept has a `kind`; composite topics (`kind: topic`) require their parts.
 - [ ] No duplicates or near-duplicates (same title ignoring case/accents/plurals).
 
 ## Titles
