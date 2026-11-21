@@ -85,7 +85,7 @@ describe("layoutGraph", () => {
   it("puts prerequisites above their dependents", async () => {
     const { view } = await load()
     const { nodes, edges } = toFlowModel(view)
-    const positions = await layoutGraph(
+    const positions = layoutGraph(
       nodes.map((n) => n.conceptId),
       edges,
     )

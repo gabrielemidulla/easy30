@@ -26,9 +26,9 @@ export async function searchNotes(
   const needle = query.trim().toLowerCase()
   if (!needle) throw new Easy30Error("invalid", "Query is empty")
   const folder = opts.courseId ? dirname(workspace.course(opts.courseId).path) : null
-  const paths = (await workspace.fs.listMarkdown()).filter(
-    (p) => folder === null || p.startsWith(`${folder}/`),
-  )
+  const paths = (await workspace.fs.listMarkdown())
+    .map((f) => f.path)
+    .filter((p) => folder === null || p.startsWith(`${folder}/`))
   const matches: NoteMatch[] = []
   for (const path of paths) {
     if (matches.length >= opts.limit) break

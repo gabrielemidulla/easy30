@@ -89,14 +89,15 @@ describe("replay", () => {
     expect(replay(log, chain, day(0)).get("span")?.mastery).toBe("unknown")
   })
 
-  it("credits green prerequisites on a successful review (implicit review)", () => {
-    const base = [rate("span", 3, day(0)), rate("span", 3, day(3))]
-    const without = replay(base, chain, day(4)).get("span")?.due?.getTime() ?? 0
-    const withCredit =
-      replay([...base, rate("basis", 3, day(4))], chain, day(4))
-        .get("span")
-        ?.due?.getTime() ?? 0
-    expect(withCredit).toBeGreaterThan(without)
+  it("credits green prerequisites on a successful review, without stacking", () => {
+    const base = [rate("span", 3, day(0))]
+    const soon = new Date(day(0).getTime() + 2.5 * 86_400_000)
+    const dueOf = (log: LogEntry[]) => replay(log, chain, soon).get("span")?.due?.getTime() ?? 0
+    const without = dueOf(base)
+    const once = dueOf([...base, rate("basis", 3, soon)])
+    const many = dueOf([...base, ...Array.from({ length: 20 }, () => rate("basis", 3, soon))])
+    expect(once).toBeGreaterThan(without)
+    expect(many).toBe(once)
   })
 })
 
@@ -121,6 +122,7 @@ describe("studyPlan", () => {
     importance,
     requires,
     unresolved: [],
+    requirements: [],
   })
   const concepts = [
     concept("vectors", 1),

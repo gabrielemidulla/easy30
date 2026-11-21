@@ -22,6 +22,14 @@ export class ConceptGraph {
     this.dependents.get(from)?.add(to)
   }
 
+  /** Replace the prerequisites of `id` (used to test edits before writing them). */
+  replacePrerequisites(id: string, prerequisites: readonly string[]): void {
+    this.ensure(id)
+    for (const p of this.prereqs.get(id) ?? []) this.dependents.get(p)?.delete(id)
+    this.prereqs.set(id, new Set())
+    for (const p of prerequisites) this.addEdge(p, id)
+  }
+
   has(id: string): boolean {
     return this.prereqs.has(id)
   }

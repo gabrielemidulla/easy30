@@ -135,8 +135,10 @@ function creditPrerequisites(
     if (masteryOf(w.lastRating, r) !== "green") continue
     const days = Math.min(w.card.stability * IMPLICIT_SHARE, IMPLICIT_CAP_DAYS)
     if (days < 0.5) continue
-    const base = Math.max(w.card.due.getTime(), at.getTime())
-    w.card = { ...w.card, due: new Date(base + days * DAY_MS) }
+    // Measured from the review, not from the current due date: repeated practice of B
+    // on one day must not push A ever further out.
+    const credited = at.getTime() + days * DAY_MS
+    if (credited > w.card.due.getTime()) w.card = { ...w.card, due: new Date(credited) }
   }
 }
 

@@ -13,3 +13,12 @@ export function linkTarget(raw: string): string | null {
 export function toWikilink(target: string): string {
   return `[[${target}]]`
 }
+
+/** Point a `requires` entry at a new target, keeping its `#heading` and `|alias`. */
+export function retargetLink(raw: string, target: string): string {
+  const wiki = /^(!?)\[\[([^\]]+)\]\]$/.exec(raw.trim())
+  if (!wiki) return toWikilink(target)
+  const inner = wiki[2] ?? ""
+  const suffix = inner.slice(inner.search(/[#|]|$/))
+  return `${wiki[1] ?? ""}[[${target}${suffix}]]`
+}

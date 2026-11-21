@@ -14,6 +14,7 @@ const HINTS: Record<Easy30Error["code"], string> = {
   not_found: "Check the id, title or path (list_courses / get_course show what exists).",
   cycle: "Prerequisites must form an acyclic graph; drop or reverse one of the edges.",
   conflict: "Something with that name already exists; pick another name or update it instead.",
+  ambiguous: "Several concepts match; pass the concept id or its path instead of the title.",
   invalid: "Fix the arguments and retry.",
 }
 

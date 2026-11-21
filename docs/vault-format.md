@@ -71,6 +71,12 @@ replaying the log**, so it never drifts and merges cleanly. Add this to
 .easy30/log/*.jsonl merge=union
 ```
 
+### Sync
+
+The log lives in `.easy30/` (a dot-folder). Git and file-sync tools (Syncthing, iCloud,
+Dropbox) sync it, but Obsidian Sync may not sync dot-folders: check your sync settings.
+Use git or another file sync to carry progress between devices.
+
 ## Derived state
 
 - **Scheduling:** FSRS (desired retention 0.9, no fuzz, day-level steps).

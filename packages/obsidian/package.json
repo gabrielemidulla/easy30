@@ -14,7 +14,6 @@
   "dependencies": {
     "@easy30/core": "workspace:*",
     "@xyflow/react": "^13.0.2",
-    "elkjs": "^0.12.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

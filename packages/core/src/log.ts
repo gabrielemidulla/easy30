@@ -1,12 +1,14 @@
 import type { VaultFs } from "./fs.js"
-import { type LogEntry, LogEntrySchema } from "./schema.js"
+import { type LogEntry, LogEntrySchema, SAFE_ID } from "./schema.js"
 
 export const STATE_DIR = ".easy30"
 
-const SAFE_ID = /^[a-z0-9][a-z0-9_-]*$/i
+export function isSafeId(id: string): boolean {
+  return SAFE_ID.test(id)
+}
 
 export function assertSafeId(id: string): void {
-  if (!SAFE_ID.test(id)) throw new Error(`Invalid id "${id}" (letters, digits, - and _ only)`)
+  if (!isSafeId(id)) throw new Error(`Invalid id "${id}" (letters, digits, - and _ only)`)
 }
 
 export function logPath(courseId: string): string {
@@ -54,10 +56,18 @@ export async function readLog(
   return text === null ? { entries: [], errors: [] } : parseLog(text)
 }
 
-export async function appendLog(fs: VaultFs, courseId: string, entry: LogEntry): Promise<void> {
+/** Append entries in a single write, so a batch (e.g. a graded test) lands whole. */
+export async function appendLog(
+  fs: VaultFs,
+  courseId: string,
+  entries: LogEntry | readonly LogEntry[],
+): Promise<void> {
+  const list = Array.isArray(entries) ? entries : [entries as LogEntry]
+  if (list.length === 0) return
+  const text = list.map(serializeEntry).join("")
   const path = logPath(courseId)
   const existing = await fs.read(path)
   // Guarantee one entry per line even if the file was saved without a trailing newline.
   const prefix = existing && !existing.endsWith("\n") ? "\n" : ""
-  await fs.append(path, prefix + serializeEntry(entry))
+  await fs.append(path, prefix + text)
 }

@@ -143,6 +143,6 @@ describe("Workspace", () => {
 
   it("rejects unsafe course ids", async () => {
     const ws = await Workspace.open(new MemoryFs())
-    await expect(ws.createCourse({ title: "x", id: "../etc" })).rejects.toThrow(/Invalid id/)
+    await expect(ws.createCourse({ title: "x", id: "../etc" })).rejects.toThrow(/Invalid course id/)
   })
 })

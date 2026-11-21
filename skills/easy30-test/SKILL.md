@@ -31,7 +31,7 @@ Mode (a) MCP (preferred); mode (b) no MCP: write the files per [vault-format](..
 
 ## 5. Create the test
 (a) `create_test {course, title, intro?, questions:[{id, prompt, concepts, points, solution}]}`. `intro` = duration, total points, allowed material, instructions. Title descriptive and unique (e.g. "Prova di prova 2026-11-21 - Autovalori").
-(b) Write `<course folder>/tests/<Title>.md` per the format (frontmatter + `## qN · P pt` + prompt + `### Answer` per question) and the solutions to `.easy30/solutions/<test-id>.md`.
+(b) Write `<course folder>/tests/<Title>.md` per the format (frontmatter + `## qN · P pt` + prompt + `### Answer` per question) and the solutions to `.easy30/solutions/<test-id>.md`. Keep prompts and LaTeX in the Markdown body, not in YAML; any free-text frontmatter value with `:`, `#`, quotes or backslashes goes in single quotes (inner `'` doubled). Expand the source's custom macros (`\R` -> `\mathbb{R}`) since Obsidian does not know them. Then run `npx easy30 doctor` (exit 0).
 
 ## 6. Hand over
 Tell the student:

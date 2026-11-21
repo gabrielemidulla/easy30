@@ -1,22 +1,32 @@
-import type { z } from "zod"
+import type * as z from "zod/mini"
 import { readFrontmatter, splitNote } from "./frontmatter.js"
-import { basename, dirname, type VaultFs } from "./fs.js"
+import { basename, dirname, isHiddenPath, type VaultFs } from "./fs.js"
 import { slugify } from "./ids.js"
 import { linkTarget } from "./links.js"
 import {
   ConceptFrontmatterSchema,
   CourseFrontmatterSchema,
+  describeError,
   TestFrontmatterSchema,
   type TestQuestion,
 } from "./schema.js"
 
 export interface Course {
   id: string
+  /** `false` when the id is derived from the title and not yet written to the note. */
+  hasStoredId: boolean
   title: string
   path: string
   exam: string | null
   language: string | null
   sources: string[]
+}
+
+export interface Requirement {
+  /** The entry exactly as written in `requires` (kept verbatim on rewrites). */
+  raw: string
+  /** Resolved concept id, or `null` when unresolved or ambiguous. */
+  id: string | null
 }
 
 export interface Concept {
@@ -30,10 +40,12 @@ export interface Concept {
   /** Note body: the reference answer. */
   answer: string
   importance: 1 | 2 | 3
-  /** Resolved prerequisite concept ids. */
+  /** Resolved prerequisite concept ids (deduplicated). */
   requires: string[]
-  /** `requires` links that point to no concept note. */
+  /** `requires` links that point to no concept note (or to several). */
   unresolved: string[]
+  /** Every `requires` entry with its resolution, in file order. */
+  requirements: Requirement[]
 }
 
 export interface PracticeTest {
@@ -60,62 +72,139 @@ export interface VaultIndex {
   issues: Issue[]
 }
 
-interface RawConcept {
-  path: string
-  fm: z.infer<typeof ConceptFrontmatterSchema>
-  body: string
+type CourseFm = z.infer<typeof CourseFrontmatterSchema>
+type ConceptFm = z.infer<typeof ConceptFrontmatterSchema>
+type TestFm = z.infer<typeof TestFrontmatterSchema>
+
+type Parsed =
+  | { kind: "course"; fm: CourseFm }
+  | { kind: "concept"; fm: ConceptFm; body: string }
+  | { kind: "test"; fm: TestFm }
+  | { kind: "invalid"; message: string }
+  | { kind: "other" }
+
+/** Parse one note. Only notes whose frontmatter mentions `easy30` are parsed as YAML. */
+export function parseNote(source: string): Parsed {
+  const { yaml, body } = splitNote(source)
+  if (yaml === null || !yaml.includes("easy30")) return { kind: "other" }
+  const fm = readFrontmatter(source)
+  const schema =
+    fm.easy30 === "course"
+      ? CourseFrontmatterSchema
+      : fm.easy30 === "concept"
+        ? ConceptFrontmatterSchema
+        : fm.easy30 === "test"
+          ? TestFrontmatterSchema
+          : null
+  if (schema === null) {
+    return typeof fm.easy30 === "string"
+      ? { kind: "invalid", message: `Unknown note type easy30: ${fm.easy30}` }
+      : { kind: "other" }
+  }
+  const parsed = schema.safeParse(fm)
+  if (!parsed.success) return { kind: "invalid", message: describeError(parsed.error) }
+  switch (parsed.data.easy30) {
+    case "course":
+      return { kind: "course", fm: parsed.data }
+    case "concept":
+      return { kind: "concept", fm: parsed.data, body }
+    case "test":
+      return { kind: "test", fm: parsed.data }
+  }
 }
 
-/** Cheap pre-filter so we only parse YAML of notes that mention easy30. */
-const MARKER = /^easy30:\s*(course|concept|test)\s*$/m
+/**
+ * Keeps a parsed copy of every note keyed by path and modification time, so a refresh
+ * only re-reads files that changed. Building the index from the cache is in-memory.
+ */
+export class VaultIndexer {
+  private readonly cache = new Map<string, { mtime: number; parsed: Parsed }>()
+
+  constructor(private readonly fs: VaultFs) {}
+
+  /** Re-list the vault and re-read notes whose mtime changed. */
+  async scan(): Promise<VaultIndex> {
+    const files = await this.fs.listMarkdown()
+    const seen = new Set<string>()
+    await Promise.all(
+      files.map(async ({ path, mtime }) => {
+        seen.add(path)
+        if (this.cache.get(path)?.mtime !== mtime) await this.load(path, mtime)
+      }),
+    )
+    for (const path of this.cache.keys()) if (!seen.has(path)) this.cache.delete(path)
+    return this.build()
+  }
+
+  /** Re-read just these paths (after our own writes). Missing files are dropped. */
+  async touch(paths: Iterable<string>): Promise<VaultIndex> {
+    await Promise.all(
+      [...new Set(paths)].map(async (path) => {
+        const mtime = path.endsWith(".md") && !isHiddenPath(path) ? await this.fs.mtime(path) : null
+        if (mtime === null) this.cache.delete(path)
+        else await this.load(path, mtime)
+      }),
+    )
+    return this.build()
+  }
+
+  private async load(path: string, mtime: number): Promise<void> {
+    const source = await this.fs.read(path)
+    if (source === null) this.cache.delete(path)
+    else this.cache.set(path, { mtime, parsed: parseNote(source) })
+  }
+
+  private build(): VaultIndex {
+    const notes = [...this.cache]
+      .map(([path, { parsed }]) => ({ path, parsed }))
+      .sort((a, b) => a.path.localeCompare(b.path))
+    return buildIndex(notes)
+  }
+}
 
 export async function loadVault(fs: VaultFs): Promise<VaultIndex> {
-  const paths = await fs.listMarkdown()
+  return new VaultIndexer(fs).scan()
+}
+
+function buildIndex(notes: { path: string; parsed: Parsed }[]): VaultIndex {
   const issues: Issue[] = []
   const courses = new Map<string, Course>()
   const tests = new Map<string, PracticeTest>()
-  const raws: RawConcept[] = []
+  const rawConcepts: { path: string; fm: ConceptFm; body: string }[] = []
 
-  const contents = await Promise.all(paths.map(async (p) => [p, await fs.read(p)] as const))
-  for (const [path, source] of contents) {
-    if (source === null || !MARKER.test(splitNote(source).yaml ?? "")) continue
-    const fm = readFrontmatter(source)
-    switch (fm.easy30) {
+  for (const { path, parsed } of notes) {
+    switch (parsed.kind) {
+      case "invalid":
+        issues.push({ path, message: parsed.message })
+        break
       case "course": {
-        const parsed = CourseFrontmatterSchema.safeParse(fm)
-        if (!parsed.success) {
-          issues.push({ path, message: describe(parsed.error) })
-          break
-        }
-        const title = parsed.data.title ?? basename(path)
-        const id = parsed.data.id ?? slugify(title)
-        if (courses.has(id)) {
-          issues.push({ path, message: `Duplicate course id "${id}"` })
+        const title = parsed.fm.title ?? basename(path)
+        const id = parsed.fm.id ?? slugify(title)
+        const clash = courses.get(id)
+        if (clash) {
+          issues.push({ path, message: `Duplicate course id "${id}" (also ${clash.path})` })
           break
         }
         courses.set(id, {
           id,
+          hasStoredId: parsed.fm.id !== undefined,
           title,
           path,
-          exam: parsed.data.exam ?? null,
-          language: parsed.data.language ?? null,
-          sources: parsed.data.sources ?? [],
+          exam: parsed.fm.exam ?? null,
+          language: parsed.fm.language ?? null,
+          sources: parsed.fm.sources ?? [],
         })
         break
       }
-      case "concept": {
-        const parsed = ConceptFrontmatterSchema.safeParse(fm)
-        if (!parsed.success) issues.push({ path, message: describe(parsed.error) })
-        else raws.push({ path, fm: parsed.data, body: splitNote(source).body })
+      case "concept":
+        rawConcepts.push({ path, fm: parsed.fm, body: parsed.body })
         break
-      }
       case "test": {
-        const parsed = TestFrontmatterSchema.safeParse(fm)
-        if (!parsed.success) {
-          issues.push({ path, message: describe(parsed.error) })
+        const t = parsed.fm
+        if (tests.has(t.id)) {
+          issues.push({ path, message: `Duplicate test id "${t.id}"` })
           break
         }
-        const t = parsed.data
         tests.set(t.id, {
           id: t.id,
           path,
@@ -129,20 +218,21 @@ export async function loadVault(fs: VaultFs): Promise<VaultIndex> {
         })
         break
       }
+      case "other":
+        break
     }
   }
 
-  const concepts = resolveConcepts(raws, courses, issues)
-  for (const test of tests.values()) {
-    if (!courses.has(test.courseId)) {
-      issues.push({ path: test.path, message: `Unknown course "${test.courseId}"` })
-    }
+  for (const t of tests.values()) {
+    if (!courses.has(t.courseId))
+      issues.push({ path: t.path, message: `Unknown course "${t.courseId}"` })
   }
+  const concepts = resolveConcepts(rawConcepts, courses, issues)
   return { courses, concepts, tests, issues }
 }
 
 function resolveConcepts(
-  raws: RawConcept[],
+  raws: { path: string; fm: ConceptFm; body: string }[],
   courses: Map<string, Course>,
   issues: Issue[],
 ): Map<string, Concept> {
@@ -161,19 +251,21 @@ function resolveConcepts(
   }
 
   const concepts = new Map<string, Concept>()
+  const fmById = new Map<string, ConceptFm>()
   for (const { path, fm, body } of raws) {
     const id = fm.id ?? `path:${path}`
-    if (concepts.has(id)) {
-      issues.push({
-        path,
-        message: `Duplicate concept id "${id}" (also ${concepts.get(id)?.path})`,
-      })
+    const clash = concepts.get(id)
+    if (clash) {
+      issues.push({ path, message: `Duplicate concept id "${id}" (also ${clash.path})` })
       continue
     }
     const courseId = fm.course ?? inferCourse(path)
-    if (courseId !== null && !courses.has(courseId)) {
+    if (courseId === null) {
+      issues.push({ path, message: "Concept is not in any course (set `course:`)" })
+    } else if (!courses.has(courseId)) {
       issues.push({ path, message: `Unknown course "${courseId}"` })
     }
+    fmById.set(id, fm)
     concepts.set(id, {
       id,
       hasStoredId: fm.id !== undefined,
@@ -182,13 +274,15 @@ function resolveConcepts(
       courseId,
       question: fm.question?.trim() ?? "",
       answer: body.trim(),
-      importance: (fm.importance ?? 2) as 1 | 2 | 3,
+      importance: fm.importance ?? 2,
       requires: [],
       unresolved: [],
+      requirements: [],
     })
   }
 
-  // Link resolution: exact path, then file name (same course first).
+  // Link resolution: exact path, else file name in the same course, else a unique
+  // file name anywhere. Several equally good matches are reported, never guessed.
   const byPath = new Map<string, Concept>()
   const byName = new Map<string, Concept[]>()
   for (const c of concepts.values()) {
@@ -196,31 +290,35 @@ function resolveConcepts(
     const key = c.title.toLowerCase()
     byName.set(key, [...(byName.get(key) ?? []), c])
   }
-  for (const { path, fm } of raws) {
-    const concept = concepts.get(fm.id ?? `path:${path}`)
-    if (!concept || concept.path !== path) continue
+  for (const concept of concepts.values()) {
     const seen = new Set<string>()
-    for (const raw of fm.requires ?? []) {
+    for (const raw of fmById.get(concept.id)?.requires ?? []) {
       const target = linkTarget(raw)
       if (target === null) continue
       const key = target.toLowerCase()
-      const candidates = byName.get(basename(key)) ?? []
-      const hit =
-        byPath.get(key) ?? candidates.find((c) => c.courseId === concept.courseId) ?? candidates[0]
-      if (!hit) concept.unresolved.push(target)
-      else if (hit.id === concept.id)
-        issues.push({ path, message: "A concept cannot require itself" })
-      else if (!seen.has(hit.id)) {
+      const named = byName.get(basename(key)) ?? []
+      const sameCourse = named.filter((c) => c.courseId === concept.courseId)
+      const pool = sameCourse.length > 0 ? sameCourse : named
+      const hit = byPath.get(key) ?? (pool.length === 1 ? pool[0] : undefined)
+      if (!hit) {
+        concept.unresolved.push(target)
+        concept.requirements.push({ raw, id: null })
+        if (pool.length > 1) {
+          issues.push({
+            path: concept.path,
+            message: `Ambiguous prerequisite [[${target}]]: ${pool.map((c) => c.path).join(", ")}`,
+          })
+        }
+        continue
+      }
+      concept.requirements.push({ raw, id: hit.id })
+      if (hit.id === concept.id) {
+        issues.push({ path: concept.path, message: "A concept cannot require itself" })
+      } else if (!seen.has(hit.id)) {
         seen.add(hit.id)
         concept.requires.push(hit.id)
       }
     }
   }
   return concepts
-}
-
-function describe(error: z.ZodError): string {
-  return error.issues
-    .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
-    .join("; ")
 }

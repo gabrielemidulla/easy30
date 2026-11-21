@@ -11,9 +11,10 @@ id: geometria            # unique slug [a-z0-9-]
 title: Geometria
 exam: 2027-01-20         # optional YYYY-MM-DD
 language: it             # language of generated content
-sources:                 # optional
-  - "[[appunti_docente.pdf]]"
+sources:                 # optional: vault-relative paths (plain strings) for files,
+  - Corsi/Geometria/appunti_docente.pdf   # wikilinks only for notes inside the vault
   - src/static/geometria/index.tex
+  - "[[Appunti Geometria]]"
 ---
 Free-form notes.
 ```
@@ -35,7 +36,9 @@ Reference answer (body), Markdown + LaTeX ($..$, $$..$$).
 
 - File name = concept title (no `/ \ : * ? " < > |`). Wikilink `[[Title]]`; if two concepts share a title use `[[folder/Title]]`.
 - Edge A -> B means A is in B's `requires` (A is a prerequisite of B). The graph MUST be acyclic.
-- Quote the `question` value if it contains `:` or `#`. Keep `requires` entries quoted.
+- YAML quoting: a `question` containing LaTeX, backslashes, colons, `#` or quotes goes in single quotes with inner `'` doubled (`'Cos''è $\mathbb{R}^n$?'`) or in a `|` block scalar. Never double quotes: `\m`, `\R` are read as escapes and break parsing. Keep `requires` entries quoted.
+- Obsidian's MathJax ignores macros defined in the sources: write `\mathbb{R}`, never `\R`.
+- Check the result with `npx easy30 doctor` (exit 0).
 - When renaming a file, rewrite every `requires` link pointing to it. When deleting, remove it from other notes' `requires`.
 
 ## Review log: `.easy30/log/<course-id>.jsonl` (append-only, one JSON object per line)

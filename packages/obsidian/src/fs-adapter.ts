@@ -1,4 +1,4 @@
-import { dirname, isHiddenPath, type VaultFs } from "@easy30/core"
+import { dirname, FileExistsError, type FileInfo, isHiddenPath, type VaultFs } from "@easy30/core"
 import type { DataAdapter, FileManager, TAbstractFile, TFile, Vault } from "obsidian"
 
 /** The slice of `App` the adapter needs; `App` satisfies it structurally. */
@@ -7,7 +7,8 @@ export interface FsHost {
     Vault,
     | "getMarkdownFiles"
     | "getAbstractFileByPath"
-    | "cachedRead"
+    | "read"
+    | "process"
     | "create"
     | "modify"
     | "append"
@@ -15,7 +16,7 @@ export interface FsHost {
   > & {
     adapter: Pick<
       DataAdapter,
-      "read" | "write" | "append" | "exists" | "mkdir" | "remove" | "rename"
+      "read" | "write" | "append" | "exists" | "mkdir" | "remove" | "rename" | "stat"
     >
   }
   fileManager: Pick<FileManager, "renameFile" | "trashFile">
@@ -51,11 +52,52 @@ export class ObsidianFs implements VaultFs {
     return this.app.vault.adapter
   }
 
+  private note(path: string): TFile | null {
+    const file = this.vault.getAbstractFileByPath(path)
+    return isFile(file) ? file : null
+  }
+
+  private async hiddenExists(path: string): Promise<boolean> {
+    return this.adapter.exists(path)
+  }
+
   async read(path: string): Promise<string | null> {
     const p = normalizeVaultPath(path)
-    if (!isVaultNote(p)) return (await this.adapter.exists(p)) ? this.adapter.read(p) : null
-    const file = this.vault.getAbstractFileByPath(p)
-    return isFile(file) ? this.vault.cachedRead(file) : null
+    if (!isVaultNote(p)) return (await this.hiddenExists(p)) ? this.adapter.read(p) : null
+    // Not `cachedRead`: a stale cache followed by a write would drop concurrent external edits.
+    const file = this.note(p)
+    return file ? this.vault.read(file) : null
+  }
+
+  async create(path: string, content: string): Promise<void> {
+    const p = normalizeVaultPath(path)
+    if (!isVaultNote(p)) {
+      if (await this.hiddenExists(p)) throw new FileExistsError(p)
+      await this.ensureAdapterFolder(dirname(p))
+      await this.adapter.write(p, content)
+      return
+    }
+    if (this.vault.getAbstractFileByPath(p) !== null) throw new FileExistsError(p)
+    await this.ensureVaultFolder(dirname(p))
+    try {
+      await this.vault.create(p, content)
+    } catch (error) {
+      // Lost a race with another writer: report it as the exclusive-create failure.
+      if (this.vault.getAbstractFileByPath(p) !== null) throw new FileExistsError(p)
+      throw error
+    }
+  }
+
+  async update(path: string, fn: (current: string) => string): Promise<void> {
+    const p = normalizeVaultPath(path)
+    if (!isVaultNote(p)) {
+      if (!(await this.hiddenExists(p))) throw new Error(`No such file: ${p}`)
+      await this.adapter.write(p, fn(await this.adapter.read(p)))
+      return
+    }
+    const file = this.note(p)
+    if (!file) throw new Error(`No such file: ${p}`)
+    await this.vault.process(file, fn)
   }
 
   async write(path: string, content: string): Promise<void> {
@@ -65,8 +107,8 @@ export class ObsidianFs implements VaultFs {
       await this.adapter.write(p, content)
       return
     }
-    const file = this.vault.getAbstractFileByPath(p)
-    if (isFile(file)) {
+    const file = this.note(p)
+    if (file) {
       await this.vault.modify(file, content)
       return
     }
@@ -79,40 +121,42 @@ export class ObsidianFs implements VaultFs {
     if (!isVaultNote(p)) {
       await this.ensureAdapterFolder(dirname(p))
       // Some mobile adapters cannot append to a file that does not exist yet.
-      if (await this.adapter.exists(p)) await this.adapter.append(p, content)
+      if (await this.hiddenExists(p)) await this.adapter.append(p, content)
       else await this.adapter.write(p, content)
       return
     }
-    const file = this.vault.getAbstractFileByPath(p)
-    if (isFile(file)) await this.vault.append(file, content)
+    const file = this.note(p)
+    if (file) await this.vault.append(file, content)
     else await this.write(p, content)
   }
 
-  async listMarkdown(): Promise<string[]> {
+  async listMarkdown(): Promise<FileInfo[]> {
     return this.vault
       .getMarkdownFiles()
-      .map((file) => file.path)
-      .filter((path) => !isHiddenPath(path))
-      .sort()
+      .filter((file) => !isHiddenPath(file.path))
+      .map((file) => ({ path: file.path, mtime: file.stat.mtime }))
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   }
 
-  async exists(path: string): Promise<boolean> {
+  async mtime(path: string): Promise<number | null> {
     const p = normalizeVaultPath(path)
-    if (!isVaultNote(p)) return this.adapter.exists(p)
-    return this.vault.getAbstractFileByPath(p) !== null
+    if (!isVaultNote(p)) return (await this.adapter.stat(p))?.mtime ?? null
+    return this.note(p)?.stat.mtime ?? null
   }
 
   async rename(from: string, to: string): Promise<void> {
     const source = normalizeVaultPath(from)
     const target = normalizeVaultPath(to)
-    if (await this.exists(target)) throw new Error(`File exists: ${target}`)
     if (!isVaultNote(source)) {
+      if (!(await this.hiddenExists(source))) throw new Error(`No such file: ${source}`)
+      if (await this.hiddenExists(target)) throw new FileExistsError(target)
       await this.ensureAdapterFolder(dirname(target))
       await this.adapter.rename(source, target)
       return
     }
-    const file = this.vault.getAbstractFileByPath(source)
-    if (!isFile(file)) throw new Error(`No such file: ${source}`)
+    const file = this.note(source)
+    if (!file) throw new Error(`No such file: ${source}`)
+    if (this.vault.getAbstractFileByPath(target) !== null) throw new FileExistsError(target)
     await this.ensureVaultFolder(dirname(target))
     // Goes through FileManager so Obsidian rewrites links to the note vault-wide.
     await this.app.fileManager.renameFile(file, target)
@@ -121,7 +165,7 @@ export class ObsidianFs implements VaultFs {
   async remove(path: string): Promise<void> {
     const p = normalizeVaultPath(path)
     if (!isVaultNote(p)) {
-      if (await this.adapter.exists(p)) await this.adapter.remove(p)
+      if (await this.hiddenExists(p)) await this.adapter.remove(p)
       return
     }
     const file = this.vault.getAbstractFileByPath(p)

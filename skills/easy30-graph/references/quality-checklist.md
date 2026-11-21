@@ -21,9 +21,14 @@ Run through this before and after sending concepts.
 ## Answer
 - [ ] Complete but concise: definition, statement with hypotheses, key proof idea OR method steps, one tiny example.
 - [ ] Markdown + LaTeX; every symbol defined.
-- [ ] Source cited ("(appunti §2.3)", "(slide 14)").
+- [ ] Source cited with the most specific locator ("(appunti §3.2)", "(slide p. 14)", "(Esempio 4)").
+- [ ] Source macros expanded (`\R` -> `\mathbb{R}`, `\Sol` -> `\operatorname{Sol}`): Obsidian's MathJax does not know them.
 - [ ] No content invented beyond the sources; flag gaps instead of guessing.
 - [ ] It does not restate prerequisites at length; it links to them via `requires`.
+
+## YAML (mode b)
+- [ ] `question` with LaTeX, backslashes, colons, `#` or quotes is in single quotes (inner `'` doubled) or a `|` block; never double quotes.
+- [ ] `requires` entries are quoted wikilinks.
 
 ## Importance
 - [ ] 3 = core (stressed in syllabus, appears in every past exam), 2 = normal, 1 = minor/optional.
@@ -39,5 +44,5 @@ Run through this before and after sending concepts.
 
 ## After sending
 - [ ] `get_course`: counts match, issues empty, edges as designed.
-- [ ] `validate_vault` clean.
+- [ ] `validate_vault` clean (mode b: `npx easy30 doctor` exits 0).
 - [ ] Spot-check 3 concepts by reading them.

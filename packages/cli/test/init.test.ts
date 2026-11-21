@@ -68,6 +68,44 @@ describe("init", () => {
     expect(out.text()).toContain("warning")
   })
 
+  it("keeps a newer or equal installed plugin unless --force, updates an older one", async () => {
+    const assets = await fakeAssets()
+    await put(assets.plugin, "manifest.json", '{"id":"easy30","version":"1.2.0"}\n')
+    const installed = ".obsidian/plugins/easy30/manifest.json"
+    const run = async (force: boolean, dir: string): Promise<string> => {
+      const out = capture()
+      await runInit({ ...base, force, dir, assets }, out)
+      return out.text()
+    }
+
+    const newer = await tempDir()
+    await put(newer, installed, '{"id":"easy30","version":"1.10.0"}\n')
+    expect(await run(false, newer)).toContain(`kept     ${installed}`)
+    expect(await slurp(newer, installed)).toContain("1.10.0")
+    expect(await run(true, newer)).toContain(`updated  ${installed}`)
+    expect(await slurp(newer, installed)).toContain("1.2.0")
+
+    const equal = await tempDir()
+    await put(equal, installed, '{"id":"easy30","version":"1.2.0","local":true}\n')
+    expect(await run(false, equal)).toContain(`kept     ${installed}`)
+    expect(await slurp(equal, installed)).toContain("local")
+
+    const older = await tempDir()
+    await put(older, installed, '{"id":"easy30","version":"1.1.9"}\n')
+    expect(await run(false, older)).toContain(`updated  ${installed}`)
+    expect(await slurp(older, installed)).toContain("1.2.0")
+  })
+
+  it("warns about a start marker without an end and leaves AGENTS.md alone", async () => {
+    const dir = await tempDir()
+    const broken = `# Mine\n${BLOCK_START}\nprecious user text\n`
+    await put(dir, "AGENTS.md", broken)
+    const out = capture()
+    await runInit({ ...base, dir, assets: await emptyAssets() }, out)
+    expect(await slurp(dir, "AGENTS.md")).toBe(broken)
+    expect(out.text()).toContain("warning  AGENTS.md")
+  })
+
   it("--no-agents skips agent files", async () => {
     const dir = await tempDir()
     await runInit({ ...base, agents: false, dir, assets: await fakeAssets() }, capture())

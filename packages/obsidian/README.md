@@ -54,6 +54,12 @@ To keep two devices from conflicting on the review log, add this to `.gitattribu
 .easy30/log/*.jsonl merge=union
 ```
 
+## Sync
+
+Your progress lives in `.easy30/` (a dot-folder) at the vault root. Git and file-sync
+tools (Syncthing, iCloud, Dropbox) sync it, but Obsidian Sync may not sync dot-folders:
+check your sync settings. For multi-device progress, use git or another file sync.
+
 ## Settings
 
 - Default folder for new courses (default `Easy30`).
@@ -74,4 +80,4 @@ pnpm --filter easy30-obsidian test
 
 ## Licenses
 
-Bundles React, React Flow (MIT) and elkjs (EPL-2.0).
+Bundles React and React Flow (MIT).

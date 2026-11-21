@@ -64,6 +64,30 @@ upsert_concepts({
 
 Later batch: `Matrice` (root), `Sistema lineare` (requires Matrice? no: requires Vettore only if the course introduces it that way), `Rango` (requires Dimensione, Matrice), `Teorema di Rouché-Capelli` (requires Rango, Sistema lineare).
 
+## The same concept as a file on disk (mode b)
+
+`Corsi/Algebra lineare/concepts/Base.md`:
+
+```markdown
+---
+easy30: concept
+id: c-4h7q2m9x
+course: algebra-lineare
+question: 'Cos''è una base di uno spazio vettoriale $V$? Perché ogni vettore ha coordinate uniche?'
+requires:
+  - "[[Span]]"
+  - "[[Indipendenza lineare]]"
+importance: 3
+---
+Una **base** di $V$ è un insieme di vettori $b_1,\dots,b_n$ linearmente indipendenti che generano $V$.
+
+**Unicità delle coordinate.** Se $v=\sum a_ib_i=\sum a_i'b_i$, allora $\sum (a_i-a_i')\,b_i=0$, da cui $a_i=a_i'$ per l'indipendenza lineare.
+
+Esempio: $(1,0),(0,1)$ è una base di $\mathbb{R}^2$. (appunti §1.5)
+```
+
+The `question` has an apostrophe and LaTeX, so it is in single quotes with `'` doubled. A question with a colon, e.g. `'Enuncia: cos''è $\det A$?'`, needs the same; a `|` block works too.
+
 ## Report shape
 
 ```

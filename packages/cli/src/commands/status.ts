@@ -14,8 +14,10 @@ export interface CourseStatus {
   title: string
   concepts: number
   mastery: Record<Mastery, number>
-  /** Average mastery score, 0-100. */
+  /** Average mastery score, 0-100. Unrated concepts still count a little; see `percentGreen`. */
   masteryPercent: number
+  /** Share of concepts that are green, 0-100: 0 when nothing is rated. */
+  percentGreen: number
   dueNow: number
   readyToLearn: number
   exam: string | null
@@ -45,6 +47,7 @@ export async function collectStatus(ws: Workspace, now: Date): Promise<CourseSta
       concepts: own.length,
       mastery,
       masteryPercent: own.length === 0 ? 0 : Math.round((total / own.length) * 100),
+      percentGreen: own.length === 0 ? 0 : Math.round((mastery.green / own.length) * 100),
       dueNow: plan.due.length,
       readyToLearn: view.readyToLearn.length,
       exam: course.exam,
@@ -71,6 +74,14 @@ export function masteryBar(mastery: Record<Mastery, number>, style: Style, width
   )
 }
 
+/** "40% green" (plus "+20% orange" when relevant); never non-zero while nothing is rated. */
+export function progressLabel(
+  s: Pick<CourseStatus, "concepts" | "mastery" | "percentGreen">,
+): string {
+  const orange = s.concepts === 0 ? 0 : Math.round((s.mastery.orange / s.concepts) * 100)
+  return `${s.percentGreen}% green${orange > 0 ? ` +${orange}% orange` : ""}`
+}
+
 function examLabel(s: CourseStatus): string {
   if (s.daysToExam === null) return ""
   if (s.daysToExam < 0) return `exam was ${plural(-s.daysToExam, "day")} ago`
@@ -94,7 +105,7 @@ export async function runStatus(opts: StatusOptions, io: Io): Promise<number> {
     line(io, style.bold(s.title) + style.dim(`  ${s.id}`))
     line(
       io,
-      `  ${masteryBar(s.mastery, style)} ${s.masteryPercent}%  ${plural(s.concepts, "concept")}`,
+      `  ${masteryBar(s.mastery, style)} ${progressLabel(s)}  ${plural(s.concepts, "concept")}`,
     )
     const parts = [
       `${s.dueNow} due now`,

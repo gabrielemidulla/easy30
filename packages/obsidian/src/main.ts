@@ -14,8 +14,10 @@ import { showError } from "./errors"
 import { Emitter } from "./events"
 import { ObsidianFs } from "./fs-adapter"
 import type { Easy30Host, StudyRequest } from "./host"
+import { SelfWrites, TrackedFs } from "./self-writes"
 import { Easy30SettingTab } from "./settings"
 import { DEFAULT_SETTINGS, type Easy30Settings, mergeSettings } from "./settings-model"
+import { TaskQueue } from "./task-queue"
 import { GraphView } from "./views/graph-view"
 import { StudyView } from "./views/study-view"
 import { logSignature } from "./watch"
@@ -30,22 +32,23 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
 
   private readonly emitter = new Emitter()
   readonly subscribe = this.emitter.subscribe
-  private versionCounter = 0
+  private revisionCounter = 0
+  private readonly selfWrites = new SelfWrites()
+  private readonly queue = new TaskQueue()
   private noteLeaf: WorkspaceLeaf | null = null
   private statusEl: HTMLElement | null = null
   private dueByCourse = new Map<string, number>()
   private knownPaths = new Set<string>()
   private lastLogSignature: string | null = null
   private lastCourseId: string | null = null
-  private refreshChain: Promise<void> = Promise.resolve()
   private readonly scheduleRefresh: Debouncer<[], void> = debounce(
     () => void this.refresh(),
     REFRESH_DEBOUNCE_MS,
     true,
   )
 
-  get version(): number {
-    return this.versionCounter
+  get revision(): number {
+    return this.revisionCounter
   }
 
   override async onload(): Promise<void> {
@@ -75,7 +78,9 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
 
   private async start(): Promise<void> {
     try {
-      this.workspace = await Workspace.open(new ObsidianFs(this.app))
+      this.workspace = await Workspace.open(
+        new TrackedFs(new ObsidianFs(this.app), this.selfWrites),
+      )
     } catch (error) {
       showError(error, "Could not index the vault")
       return
@@ -84,14 +89,14 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
     this.lastLogSignature = await logSignature(this.app.vault.adapter)
     this.registerVaultEvents()
     this.registerInterval(window.setInterval(() => void this.pollLogs(), LOG_POLL_MS))
-    this.registerInterval(window.setInterval(() => void this.afterRefresh(), DUE_RECOMPUTE_MS))
+    this.registerInterval(window.setInterval(() => void this.notify(), DUE_RECOMPUTE_MS))
   }
 
   private registerVaultEvents(): void {
     const { vault, metadataCache } = this.app
     this.registerEvent(
       metadataCache.on("changed", (file, _data, cache) => {
-        if (file.extension !== "md") return
+        if (file.extension !== "md" || this.isOwnWrite(file)) return
         if (cache.frontmatter?.easy30 !== undefined || this.knownPaths.has(file.path)) {
           this.scheduleRefresh()
         }
@@ -99,11 +104,13 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
     )
     this.registerEvent(
       vault.on("rename", (file: TAbstractFile, oldPath: string) => {
+        if (this.isOwnWrite(file)) return
         if (this.knownPaths.has(oldPath) || this.knownPaths.has(file.path)) this.scheduleRefresh()
       }),
     )
     this.registerEvent(
       vault.on("delete", (file: TAbstractFile) => {
+        if (this.selfWrites.isOwn(file.path, null)) return
         if (this.knownPaths.has(file.path)) this.scheduleRefresh()
       }),
     )
@@ -111,7 +118,9 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
     // Folder creation never matters, but a restored/copied note might arrive fully formed.
     this.registerEvent(
       vault.on("create", (file: TAbstractFile) => {
-        if (file instanceof TFile && file.extension === "md") this.scheduleRefresh()
+        if (file instanceof TFile && file.extension === "md" && !this.isOwnWrite(file)) {
+          this.scheduleRefresh()
+        }
       }),
     )
   }
@@ -124,9 +133,15 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
     this.lastLogSignature = signature
   }
 
-  /** Serialised so overlapping triggers never interleave two vault scans. */
+  /** The echo of a write we made ourselves (core already re-indexed after it). */
+  private isOwnWrite(file: TAbstractFile): boolean {
+    return file instanceof TFile && this.selfWrites.isOwn(file.path, file.stat.mtime)
+  }
+
+  /** Re-scan the vault. Runs after any in-flight refresh or mutation (never interleaved),
+   * and requests arriving while one is waiting share a single scan. */
   refresh(): Promise<void> {
-    const run = async () => {
+    return this.queue.coalesced(async () => {
       const ws = this.workspace
       if (!ws) return
       try {
@@ -135,13 +150,11 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
         showError(error, "Could not refresh")
       }
       await this.afterRefresh()
-    }
-    this.refreshChain = this.refreshChain.then(run, run)
-    return this.refreshChain
+    })
   }
 
-  async notify(): Promise<void> {
-    await this.afterRefresh()
+  notify(): Promise<void> {
+    return this.queue.run(() => this.afterRefresh())
   }
 
   private async afterRefresh(): Promise<void> {
@@ -151,7 +164,7 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
       this.dueByCourse = await dueCounts(ws)
     }
     this.updateStatusBar()
-    this.versionCounter++
+    this.revisionCounter++
     this.emitter.emit()
   }
 
@@ -161,14 +174,18 @@ export default class Easy30Plugin extends Plugin implements Easy30Host {
       new Notice("Easy30 is still loading. Try again in a moment.")
       return undefined
     }
-    try {
-      return await action(ws)
-    } catch (error) {
-      showError(error)
-      return undefined
-    } finally {
-      await this.afterRefresh()
-    }
+    return this.queue.run(async () => {
+      try {
+        return await action(ws)
+      } catch (error) {
+        showError(error)
+        return undefined
+      } finally {
+        // Our own log appends must not look like another device's sync to the poller.
+        this.lastLogSignature = await logSignature(this.app.vault.adapter)
+        await this.afterRefresh()
+      }
+    })
   }
 
   // ── status bar ─────────────────────────────────────────────────────────────

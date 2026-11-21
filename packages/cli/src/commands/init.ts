@@ -7,6 +7,7 @@ import { loadExample, writeExample } from "../lib/example.js"
 import { createStyle, type Io, line } from "../lib/io.js"
 import { mergeCommunityPlugins, mergeMcpConfig, parseConfig } from "../lib/json-config.js"
 import { upsertBlock } from "../lib/managed-block.js"
+import { compareSemver } from "../lib/semver.js"
 import { applyResult, createFile, type FileReport, openVaultFs } from "../lib/vault-files.js"
 import { installSkills } from "./skills.js"
 
@@ -39,6 +40,24 @@ async function readOptional(path: string): Promise<string | null> {
   }
 }
 
+function manifestVersion(text: string | null): string | null {
+  if (text === null) return null
+  try {
+    const version: unknown = (JSON.parse(text) as { version?: unknown }).version
+    return typeof version === "string" ? version : null
+  } catch {
+    return null
+  }
+}
+
+/** True when no readable plugin is installed yet, or the bundled one has a higher version. */
+async function bundledIsNewer(fs: VaultFs, assets: AssetPaths): Promise<boolean> {
+  const installed = manifestVersion(await fs.read(`.obsidian/plugins/${PLUGIN_ID}/manifest.json`))
+  const bundled = manifestVersion(await readOptional(`${assets.plugin}/manifest.json`))
+  if (installed === null || bundled === null) return true
+  return compareSemver(bundled, installed) > 0
+}
+
 async function setupObsidian(
   fs: VaultFs,
   opts: InitOptions,
@@ -57,16 +76,17 @@ async function setupObsidian(
 
   // Without main.js the plugin is not built: installing manifest/styles alone would break it.
   const built = (await readOptional(`${assets.plugin}/main.js`)) !== null
+  const replace = opts.force || (await bundledIsNewer(fs, assets))
   let copied = 0
   for (const file of built ? PLUGIN_FILES : []) {
     const source = await readOptional(`${assets.plugin}/${file}`)
     if (source === null) continue
     const dest = `.obsidian/plugins/${PLUGIN_ID}/${file}`
     const current = await fs.read(dest)
-    if (current !== source) await fs.write(dest, source)
+    if (current !== source && (current === null || replace)) await fs.write(dest, source)
     out.reports.push({
       path: dest,
-      status: current === null ? "created" : current === source ? "kept" : "updated",
+      status: current === null ? "created" : current === source || !replace ? "kept" : "updated",
     })
     copied++
   }
@@ -96,9 +116,11 @@ async function setupAgents(
   assets: AssetPaths,
   out: InitResult,
 ): Promise<void> {
-  const notes = ["AGENTS.md", ...((await fs.exists("CLAUDE.md")) ? ["CLAUDE.md"] : [])]
+  const notes = ["AGENTS.md", ...((await fs.mtime("CLAUDE.md")) !== null ? ["CLAUDE.md"] : [])]
   for (const path of notes) {
-    out.reports.push(await applyResult(fs, path, upsertBlock(await fs.read(path), AGENTS_BLOCK)))
+    const block = upsertBlock(await fs.read(path), AGENTS_BLOCK)
+    if (block.warning !== undefined) out.warnings.push(`${path}: ${block.warning}`)
+    out.reports.push(await applyResult(fs, path, block))
   }
 
   const mcpPath = ".mcp.json"

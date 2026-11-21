@@ -1,6 +1,6 @@
 import { appendFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join, relative, sep } from "node:path"
-import type { VaultFs } from "./fs.js"
+import { FileExistsError, type FileInfo, type VaultFs } from "./fs.js"
 
 /** Ignored while scanning, in addition to dot-folders. */
 const IGNORED_DIRS = new Set(["node_modules"])
@@ -12,7 +12,7 @@ export class NodeFs implements VaultFs {
   private abs(path: string): string {
     const full = join(this.root, ...path.split("/"))
     const rel = relative(this.root, full)
-    if (rel.startsWith("..") || rel.split(sep).includes("..")) {
+    if (rel === "" || rel.startsWith("..") || rel.split(sep).includes("..")) {
       throw new Error(`Path escapes the vault: ${path}`)
     }
     return full
@@ -22,9 +22,26 @@ export class NodeFs implements VaultFs {
     try {
       return await readFile(this.abs(path), "utf8")
     } catch (error) {
-      if (isNotFound(error)) return null
+      if (errorCode(error) === "ENOENT") return null
       throw error
     }
+  }
+
+  async create(path: string, content: string): Promise<void> {
+    const full = this.abs(path)
+    await mkdir(dirname(full), { recursive: true })
+    try {
+      await writeFile(full, content, { encoding: "utf8", flag: "wx" })
+    } catch (error) {
+      if (errorCode(error) === "EEXIST") throw new FileExistsError(path)
+      throw error
+    }
+  }
+
+  async update(path: string, fn: (current: string) => string): Promise<void> {
+    const current = await this.read(path)
+    if (current === null) throw new Error(`No such file: ${path}`)
+    await writeFile(this.abs(path), fn(current), "utf8")
   }
 
   async write(path: string, content: string): Promise<void> {
@@ -39,19 +56,18 @@ export class NodeFs implements VaultFs {
     await appendFile(full, content, "utf8")
   }
 
-  async exists(path: string): Promise<boolean> {
+  async mtime(path: string): Promise<number | null> {
     try {
-      await stat(this.abs(path))
-      return true
+      return (await stat(this.abs(path))).mtimeMs
     } catch (error) {
-      if (isNotFound(error)) return false
+      if (errorCode(error) === "ENOENT") return null
       throw error
     }
   }
 
   async rename(from: string, to: string): Promise<void> {
     const target = this.abs(to)
-    if (await this.exists(to)) throw new Error(`File exists: ${to}`)
+    if ((await this.mtime(to)) !== null) throw new FileExistsError(to)
     await mkdir(dirname(target), { recursive: true })
     await rename(this.abs(from), target)
   }
@@ -60,25 +76,28 @@ export class NodeFs implements VaultFs {
     await rm(this.abs(path), { force: true })
   }
 
-  async listMarkdown(): Promise<string[]> {
-    const out: string[] = []
+  async listMarkdown(): Promise<FileInfo[]> {
+    const out: FileInfo[] = []
     const walk = async (dir: string): Promise<void> => {
       const entries = await readdir(dir, { withFileTypes: true })
-      for (const entry of entries) {
-        if (entry.name.startsWith(".")) continue
-        const full = join(dir, entry.name)
-        if (entry.isDirectory()) {
-          if (!IGNORED_DIRS.has(entry.name)) await walk(full)
-        } else if (entry.isFile() && entry.name.endsWith(".md")) {
-          out.push(relative(this.root, full).split(sep).join("/"))
-        }
-      }
+      await Promise.all(
+        entries.map(async (entry) => {
+          if (entry.name.startsWith(".")) return
+          const full = join(dir, entry.name)
+          if (entry.isDirectory()) {
+            if (!IGNORED_DIRS.has(entry.name)) await walk(full)
+          } else if (entry.isFile() && entry.name.endsWith(".md")) {
+            const { mtimeMs } = await stat(full)
+            out.push({ path: relative(this.root, full).split(sep).join("/"), mtime: mtimeMs })
+          }
+        }),
+      )
     }
     await walk(this.root)
-    return out.sort()
+    return out.sort((a, b) => a.path.localeCompare(b.path))
   }
 }
 
-function isNotFound(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
+function errorCode(error: unknown): string | undefined {
+  return (error as NodeJS.ErrnoException | undefined)?.code
 }

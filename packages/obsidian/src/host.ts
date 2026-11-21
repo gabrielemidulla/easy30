@@ -18,8 +18,9 @@ export interface Easy30Host {
   /** `null` until the vault has been indexed. */
   readonly workspace: Workspace | null
   readonly settings: Easy30Settings
-  /** Bumps whenever the workspace changed; pair with `subscribe` in `useSyncExternalStore`. */
-  readonly version: number
+  /** Bumps after every workspace refresh or mutation; pair with `subscribe` in
+   * `useSyncExternalStore`. The `Workspace` instance itself never changes. */
+  readonly revision: number
   readonly subscribe: (listener: Listener) => () => void
   /** Tell views that derived state changed (e.g. after a rating was logged). */
   notify(): Promise<void>

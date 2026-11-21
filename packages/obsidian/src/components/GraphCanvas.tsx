@@ -30,32 +30,20 @@ export interface GraphCanvasProps {
   onRemoveEdge: (prerequisiteId: string, dependentId: string) => void
 }
 
-/** Recompute the layout only when the set of nodes/edges changes. */
-function useLayout(model: FlowModel): Layout | null {
-  const [layout, setLayout] = useState<Layout | null>(null)
+/** Recompute the layout only when the set of nodes/edges changes (the signature). */
+function useLayout(model: FlowModel): Layout {
   const latest = useRef(model)
   latest.current = model
-
-  useEffect(() => {
-    let cancelled = false
+  return useMemo<Layout>(() => {
     const { nodes, edges } = latest.current
-    layoutGraph(
-      nodes.map((n) => n.conceptId),
-      edges,
-    ).then(
-      (positions) => {
-        if (!cancelled) setLayout({ signature: model.signature, positions })
-      },
-      () => {
-        // A failed layout leaves the previous one in place; nothing useful to show.
-      },
-    )
-    return () => {
-      cancelled = true
+    return {
+      signature: model.signature,
+      positions: layoutGraph(
+        nodes.map((n) => n.conceptId),
+        edges,
+      ),
     }
   }, [model.signature])
-
-  return layout
 }
 
 function GraphFlow({ model, onOpenNode, onNodeMenu, onConnect, onRemoveEdge }: GraphCanvasProps) {
@@ -70,7 +58,6 @@ function GraphFlow({ model, onOpenNode, onNodeMenu, onConnect, onRemoveEdge }: G
   )
 
   const nodes = useMemo<ConceptFlowNode[]>(() => {
-    if (!layout) return []
     return withHover(model, hovered).flatMap((data) => {
       const position = layout.positions.get(data.conceptId)
       return position
@@ -82,7 +69,7 @@ function GraphFlow({ model, onOpenNode, onNodeMenu, onConnect, onRemoveEdge }: G
   const edges = useMemo<Edge[]>(
     () =>
       model.edges
-        .filter((e) => layout?.positions.has(e.source) && layout.positions.has(e.target))
+        .filter((e) => layout.positions.has(e.source) && layout.positions.has(e.target))
         .map((e) => {
           const selected = e.id === selectedEdge
           const inFocus = (id: string) => id === hovered || related?.has(id) === true
@@ -135,8 +122,6 @@ function GraphFlow({ model, onOpenNode, onNodeMenu, onConnect, onRemoveEdge }: G
       setSelectedEdge(null)
     }
   }, [model.edges, selectedEdge])
-
-  if (!layout) return <div className="easy30-canvas-loading">Laying out the graph…</div>
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard handler for edge deletion

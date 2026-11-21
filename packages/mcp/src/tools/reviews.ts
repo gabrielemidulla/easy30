@@ -1,4 +1,4 @@
-import { Easy30Error, RatingSchema, verdictRating } from "@easy30/core"
+import { Easy30Error, type Rating, verdictRating } from "@easy30/core"
 import { z } from "zod"
 import { day, titleOf } from "../format.js"
 import type { Registrar } from "../registrar.js"
@@ -24,7 +24,10 @@ export function registerReviewTools(tool: Registrar): void {
       input: {
         concept: z.string().describe("Concept id, title or path"),
         kind: z.enum(["review", "skim", "oral"]),
-        rating: RatingSchema.optional().describe("1 again, 2 hard, 3 good, 4 easy"),
+        rating: z
+          .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+          .optional()
+          .describe("1 again, 2 hard, 3 good, 4 easy (skim: 1-3)"),
         verdict: verdictSchema.optional(),
         answer: z.string().optional().describe("The student's answer"),
         feedback: z.string().optional().describe("Your feedback on the answer (needs verdict)"),
@@ -40,7 +43,8 @@ export function registerReviewTools(tool: Registrar): void {
         throw new Easy30Error("invalid", "`feedback` is stored with a `verdict`; provide one")
       }
       const concept = resolveConcept(workspace, args.concept)
-      const rating = args.rating ?? (args.verdict ? verdictRating(args.verdict) : undefined)
+      const rating: Rating | undefined =
+        args.rating ?? (args.verdict ? verdictRating(args.verdict) : undefined)
       if (rating === undefined) throw new Easy30Error("invalid", "Provide a rating or verdict")
       const { entry, changed } = await workspace.rate({
         conceptId: concept.id,

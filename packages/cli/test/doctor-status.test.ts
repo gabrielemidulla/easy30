@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { runDoctor } from "../src/commands/doctor.js"
-import { runStatus } from "../src/commands/status.js"
+import { progressLabel, runStatus } from "../src/commands/status.js"
 import { capture, put, slurp, tempDir } from "./helpers.js"
 
 const course = "---\neasy30: course\nid: c1\ntitle: Course\nexam: 2027-01-20\n---\n"
@@ -84,7 +84,9 @@ describe("status", () => {
       exam: "2027-01-20",
       daysToExam: 10,
       mastery: { unknown: 2, red: 0, orange: 0, green: 0 },
+      percentGreen: 0,
     })
+    expect(typeof s.masteryPercent).toBe("number")
   })
 
   it("renders a human-readable table", async () => {
@@ -94,5 +96,17 @@ describe("status", () => {
     expect(out.text()).toContain("Course")
     expect(out.text()).toContain("░")
     expect(out.text()).toContain("exam in 10 days")
+    expect(out.text()).toContain("0% green")
+  })
+})
+
+describe("progressLabel", () => {
+  it("shows the green share, with orange as a secondary figure", () => {
+    const mastery = { unknown: 5, red: 0, orange: 0, green: 0 }
+    expect(progressLabel({ concepts: 5, mastery, percentGreen: 0 })).toBe("0% green")
+    const mixed = { unknown: 0, red: 0, orange: 2, green: 2 }
+    expect(progressLabel({ concepts: 4, mastery: mixed, percentGreen: 50 })).toBe(
+      "50% green +50% orange",
+    )
   })
 })

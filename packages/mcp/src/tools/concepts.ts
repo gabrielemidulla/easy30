@@ -113,7 +113,7 @@ export function registerConceptTools(tool: Registrar): void {
       },
     },
     ({ course, concepts, replace_requires }, { workspace }) =>
-      upsertConcepts(workspace, course, concepts, replace_requires),
+      upsertConcepts(workspace, course, concepts.map(withoutUndefined), replace_requires),
   )
 
   tool(
@@ -220,4 +220,13 @@ export function registerConceptTools(tool: Registrar): void {
       return { deleted: conceptRef(concept), path: concept.path, dependents_updated: dependents }
     },
   )
+}
+
+/** zod gives `field?: T | undefined`; core's inputs use exact optional properties. */
+function withoutUndefined<T extends object>(
+  value: T,
+): { [K in keyof T]: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as {
+    [K in keyof T]: Exclude<T[K], undefined>
+  }
 }

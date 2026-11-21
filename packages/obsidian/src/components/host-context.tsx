@@ -16,5 +16,5 @@ export function useHost(): Easy30Host {
 /** Re-render whenever the workspace changes; returns the current version number. */
 export function useHostVersion(): number {
   const host = useHost()
-  return useSyncExternalStore(host.subscribe, () => host.version)
+  return useSyncExternalStore(host.subscribe, () => host.revision)
 }

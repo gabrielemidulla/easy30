@@ -1,3 +1,4 @@
+import { FileExistsError } from "@easy30/core"
 import { describe, expect, it } from "vitest"
 import { type FsHost, normalizeVaultPath, ObsidianFs } from "../src/fs-adapter"
 
@@ -5,6 +6,7 @@ interface FakeFile {
   path: string
   extension: string
   content: string
+  stat: { mtime: number }
 }
 
 /** In-memory stand-in for the parts of Obsidian's `App` the adapter touches. */
@@ -13,16 +15,23 @@ function fakeApp() {
   const folders = new Set<string>()
   const hidden = new Map<string, string>()
   const calls: string[] = []
+  const times = new Map<string, number>()
+  let clock = 0
   const entry = (path: string) => files.get(path) ?? (folders.has(path) ? { path } : null)
 
   const host = {
     vault: {
       getMarkdownFiles: () => [...files.values()],
       getAbstractFileByPath: (path: string) => entry(path),
-      cachedRead: async (f: FakeFile) => f.content,
+      read: async (f: FakeFile) => f.content,
+      process: async (f: FakeFile, fn: (c: string) => string) => {
+        calls.push(`process ${f.path}`)
+        f.content = fn(f.content)
+        return f.content
+      },
       create: async (path: string, content: string) => {
         calls.push(`create ${path}`)
-        const file = { path, extension: "md", content }
+        const file = { path, extension: "md", content, stat: { mtime: ++clock } }
         files.set(path, file)
         return file
       },
@@ -42,6 +51,7 @@ function fakeApp() {
         read: async (p: string) => hidden.get(p) ?? "",
         write: async (p: string, c: string) => void hidden.set(p, c),
         append: async (p: string, c: string) => void hidden.set(p, (hidden.get(p) ?? "") + c),
+        stat: async (p: string) => (hidden.has(p) ? { mtime: times.get(p) ?? 7 } : null),
         exists: async (p: string) => hidden.has(p) || folders.has(`adapter:${p}`),
         mkdir: async (p: string) => void folders.add(`adapter:${p}`),
         remove: async (p: string) => void hidden.delete(p),
@@ -84,15 +94,19 @@ describe("ObsidianFs", () => {
     expect(files.get("Uni/Geo/Note.md")?.content).toBe("two")
     expect(await fs.read("Uni/Geo/Note.md")).toBe("two")
     expect(await fs.read("Uni/Missing.md")).toBeNull()
-    expect(await fs.exists("Uni/Geo/Note.md")).toBe(true)
+    expect(await fs.mtime("Uni/Geo/Note.md")).not.toBeNull()
+    expect(await fs.mtime("Uni/Missing.md")).toBeNull()
   })
 
   it("lists only visible markdown files, sorted", async () => {
     const { fs, files } = fakeApp()
     for (const path of ["b.md", "a.md", ".hidden/x.md", "dir/.obsidian/y.md"]) {
-      files.set(path, { path, extension: "md", content: "" })
+      files.set(path, { path, extension: "md", content: "", stat: { mtime: 5 } })
     }
-    expect(await fs.listMarkdown()).toEqual(["a.md", "b.md"])
+    expect(await fs.listMarkdown()).toEqual([
+      { path: "a.md", mtime: 5 },
+      { path: "b.md", mtime: 5 },
+    ])
   })
 
   it("keeps .easy30 state out of the vault index and appends to it", async () => {
@@ -113,8 +127,8 @@ describe("ObsidianFs", () => {
     await fs.write("a/Two.md", "y")
     await fs.rename("a/One.md", "b/Uno.md")
     expect(calls.at(-1)).toBe("rename a/One.md -> b/Uno.md")
-    expect(await fs.exists("b/Uno.md")).toBe(true)
-    await expect(fs.rename("a/Two.md", "b/Uno.md")).rejects.toThrow(/exists/)
+    expect(await fs.read("b/Uno.md")).toBe("x")
+    await expect(fs.rename("a/Two.md", "b/Uno.md")).rejects.toBeInstanceOf(FileExistsError)
     await expect(fs.rename("a/Nope.md", "b/Nope.md")).rejects.toThrow(/No such file/)
   })
 
@@ -124,6 +138,35 @@ describe("ObsidianFs", () => {
     await fs.remove("a/One.md")
     await fs.remove("a/Never.md")
     expect(calls.filter((c) => c.startsWith("trash"))).toEqual(["trash a/One.md"])
-    expect(await fs.exists("a/One.md")).toBe(false)
+    expect(await fs.read("a/One.md")).toBeNull()
+  })
+
+  it("create is exclusive for notes and hidden files", async () => {
+    const { fs } = fakeApp()
+    await fs.create("a/One.md", "x")
+    await expect(fs.create("a/One.md", "y")).rejects.toBeInstanceOf(FileExistsError)
+    expect(await fs.read("a/One.md")).toBe("x")
+    await fs.create(".easy30/x.json", "1")
+    await expect(fs.create(".easy30/x.json", "2")).rejects.toBeInstanceOf(FileExistsError)
+  })
+
+  it("updates notes via vault.process and hidden files via the adapter", async () => {
+    const { fs, calls, hidden } = fakeApp()
+    await fs.write("a/One.md", "x")
+    await fs.update("a/One.md", (c) => `${c}!`)
+    expect(calls.at(-1)).toBe("process a/One.md")
+    expect(await fs.read("a/One.md")).toBe("x!")
+    await fs.write(".easy30/s.json", "1")
+    await fs.update(".easy30/s.json", (c) => `${c}2`)
+    expect(hidden.get(".easy30/s.json")).toBe("12")
+    await expect(fs.update("a/None.md", (c) => c)).rejects.toThrow(/No such file/)
+    await expect(fs.update(".easy30/none", (c) => c)).rejects.toThrow(/No such file/)
+  })
+
+  it("reports the mtime of hidden files", async () => {
+    const { fs } = fakeApp()
+    await fs.write(".easy30/s.json", "1")
+    expect(await fs.mtime(".easy30/s.json")).toBe(7)
+    expect(await fs.mtime(".easy30/none")).toBeNull()
   })
 })

@@ -1,8 +1,9 @@
 import type { Concept, Grading, Rating } from "@easy30/core"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { LOG_SOURCE } from "../constants"
 import { errorMessage, showError } from "../errors"
 import type { Easy30Host, StudyRequest } from "../host"
+import { remapQueue, resolveConcept } from "./resolve"
 
 export interface RateExtras {
   answer?: string
@@ -13,6 +14,8 @@ export interface RateExtras {
 interface HistoryItem {
   entryId: string
   conceptId: string
+  /** Course whose log holds the entry: differs from the session's for external concepts. */
+  courseId: string
   rating: Rating
 }
 
@@ -41,6 +44,9 @@ export function useSession(host: Easy30Host, request: StudyRequest): Session {
   const { mode, courseId, learnNext } = request
   const idsKey = request.conceptIds?.join("\n") ?? ""
   const ws = host.workspace
+  const revision = useSyncExternalStore(host.subscribe, () => host.revision)
+  /** Last known path of each queued concept id, to survive id changes across refreshes. */
+  const paths = useRef(new Map<string, string>())
   const includeInferred = host.settings.skimIncludeInferred
 
   const [queue, setQueue] = useState<string[] | null>(null)
@@ -72,6 +78,11 @@ export function useSession(host: Easy30Host, request: StudyRequest): Session {
     load().then(
       (loaded) => {
         if (cancelled) return
+        paths.current = new Map()
+        for (const id of loaded.ids) {
+          const known = resolveConcept(ws, id, undefined)
+          if (known) paths.current.set(id, known.path)
+        }
         setQueue(loaded.ids)
         setTotal(loaded.total)
       },
@@ -85,14 +96,25 @@ export function useSession(host: Easy30Host, request: StudyRequest): Session {
   }, [ws, mode, courseId, idsKey, learnNext, includeInferred])
 
   const currentId = queue?.[0]
+  // `revision` re-resolves after every refresh, so edits to the card show up and a
+  // deleted note is noticed (the Workspace instance itself never changes).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `revision` is the refresh trigger
   const concept = useMemo<Concept | null>(() => {
     if (!ws || currentId === undefined) return null
-    try {
-      return ws.concept(currentId)
-    } catch {
-      return null
-    }
-  }, [ws, currentId])
+    return resolveConcept(ws, currentId, paths.current.get(currentId))
+  }, [ws, currentId, revision])
+
+  // After a refresh ids may have changed (a `path:` id gets a stored id on first rating)
+  // or vanished: re-map the queue by path.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per refresh
+  useEffect(() => {
+    if (!ws) return
+    setQueue((q) => {
+      if (!q) return q
+      const next = remapQueue(ws, q, paths.current)
+      return next.length === q.length && next.every((id, i) => id === q[i]) ? q : next
+    })
+  }, [ws, revision])
 
   // The note may have been deleted mid-session: skip it.
   useEffect(() => {
@@ -115,27 +137,42 @@ export function useSession(host: Easy30Host, request: StudyRequest): Session {
       if (!ws || busy || !queue || currentId === undefined) return
       setBusy(true)
       try {
-        const { entry, changed } = await ws.rate({
-          conceptId: currentId,
-          kind: mode,
-          rating,
-          source: LOG_SOURCE,
-          ms: extras.ms,
-          ...(extras.answer !== undefined && { answer: extras.answer }),
-          ...(extras.grading !== undefined && { grading: extras.grading }),
-        })
-        setHistory((h) => [...h, { entryId: entry.id, conceptId: currentId, rating }])
+        // Through the host so it is serialised with refreshes and notifies views.
+        const result = await host.mutate((w) =>
+          w.rate({
+            conceptId: currentId,
+            kind: mode,
+            rating,
+            source: LOG_SOURCE,
+            ms: extras.ms,
+            ...(extras.answer !== undefined && { answer: extras.answer }),
+            ...(extras.grading !== undefined && { grading: extras.grading }),
+          }),
+        )
+        if (!result) return
+        const { entry, changed } = result
+        const rated = resolveConcept(ws, entry.concept, undefined)
+        const ratedPath = rated?.path ?? paths.current.get(currentId)
+        if (ratedPath !== undefined) paths.current.set(entry.concept, ratedPath)
+        setHistory((h) => [
+          ...h,
+          {
+            entryId: entry.id,
+            conceptId: entry.concept,
+            courseId: rated?.courseId ?? courseId,
+            rating,
+          },
+        ])
         setQueue(mode === "skim" ? await skimQueue() : queue.slice(1))
         const inferred = changed.filter((s) => s.conceptId !== currentId && s.inferred !== null)
         setHint(mode === "skim" && inferred.length > 0 ? `+${inferred.length} inferred` : null)
-        await host.notify()
       } catch (e) {
         showError(e, "Could not save the rating")
       } finally {
         setBusy(false)
       }
     },
-    [ws, busy, queue, currentId, mode, skimQueue, host],
+    [ws, busy, queue, currentId, mode, courseId, skimQueue, host],
   )
 
   const undo = useCallback(async (): Promise<void> => {
@@ -143,18 +180,21 @@ export function useSession(host: Easy30Host, request: StudyRequest): Session {
     if (!ws || busy || !queue || !last) return
     setBusy(true)
     try {
-      await ws.retract(courseId, last.entryId, LOG_SOURCE)
+      const done = await host.mutate(async (w) => {
+        await w.retract(last.courseId, last.entryId, LOG_SOURCE)
+        return true
+      })
+      if (!done) return
       setHistory((h) => h.slice(0, -1))
       const rest = mode === "skim" ? await skimQueue() : queue
       setQueue([last.conceptId, ...rest.filter((id) => id !== last.conceptId)])
       setHint(null)
-      await host.notify()
     } catch (e) {
       showError(e, "Could not undo")
     } finally {
       setBusy(false)
     }
-  }, [ws, busy, queue, history, courseId, mode, skimQueue, host])
+  }, [ws, busy, queue, history, mode, skimQueue, host])
 
   const status: Session["status"] =
     error !== null

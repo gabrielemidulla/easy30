@@ -12,27 +12,6 @@ export function resolveConcept(workspace: Workspace, ref: string, courseId?: str
   return concept
 }
 
-/**
- * Resolve concept references to ids that are stored in the notes. Concepts without a
- * stored id are given one first, so test files never reference a `path:` placeholder.
- */
-export async function resolveStoredConceptIds(
-  workspace: Workspace,
-  refs: readonly string[],
-  courseId: string,
-): Promise<Map<string, string>> {
-  const resolve = () => new Map(refs.map((r) => [r, resolveConcept(workspace, r, courseId)]))
-  let resolved = resolve()
-  const unstored = [...resolved.values()].filter((c) => !c.hasStoredId)
-  if (unstored.length > 0) {
-    for (const owner of new Set(unstored.map((c) => c.courseId ?? courseId))) {
-      await workspace.assignIds(owner)
-    }
-    resolved = resolve()
-  }
-  return new Map([...resolved].map(([ref, concept]) => [ref, concept.id]))
-}
-
 /** Resolve a practice test given as id, title or path. */
 export function resolveTest(workspace: Workspace, ref: string): PracticeTest {
   const wanted = ref.trim().toLowerCase()

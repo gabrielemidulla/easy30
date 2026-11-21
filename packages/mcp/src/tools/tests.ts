@@ -1,7 +1,7 @@
-import { Easy30Error, type PracticeTest, type Workspace } from "@easy30/core"
+import type { PracticeTest, Workspace } from "@easy30/core"
 import { z } from "zod"
 import type { Registrar } from "../registrar.js"
-import { resolveStoredConceptIds, resolveTest } from "../resolve.js"
+import { resolveTest } from "../resolve.js"
 
 const testArg = z.string().describe("Test id, title or path")
 
@@ -17,30 +17,6 @@ function testSummary(test: PracticeTest) {
     max: test.max,
     questions: test.questions.map((q) => ({ id: q.id, concepts: q.concepts, points: q.points })),
   }
-}
-
-/** Every question must be graded exactly once, within its points. */
-function validateResults(
-  test: PracticeTest,
-  results: readonly { question_id: string; score: number }[],
-): void {
-  const points = new Map(test.questions.map((q) => [q.id, q.points]))
-  const seen = new Set<string>()
-  for (const r of results) {
-    const max = points.get(r.question_id)
-    if (max === undefined) throw new Easy30Error("invalid", `Unknown question "${r.question_id}"`)
-    if (seen.has(r.question_id))
-      throw new Easy30Error("invalid", `Question "${r.question_id}" graded twice`)
-    seen.add(r.question_id)
-    if (r.score > max)
-      throw new Easy30Error(
-        "invalid",
-        `Score ${r.score} exceeds ${max} points for "${r.question_id}"`,
-      )
-  }
-  const missing = test.questions.filter((q) => !seen.has(q.id)).map((q) => q.id)
-  if (missing.length > 0)
-    throw new Easy30Error("invalid", `Missing results for question(s): ${missing.join(", ")}`)
 }
 
 async function readNote(workspace: Workspace, test: PracticeTest): Promise<string> {
@@ -76,16 +52,11 @@ export function registerTestTools(tool: Registrar): void {
       },
     },
     async ({ course, title, intro, questions }, { workspace }) => {
-      const refs = [...new Set(questions.flatMap((q) => q.concepts))]
-      const ids = await resolveStoredConceptIds(workspace, refs, course)
       const test = await workspace.createTest({
         courseId: course,
         title,
         ...(intro !== undefined && { intro }),
-        questions: questions.map((q) => ({
-          ...q,
-          concepts: q.concepts.map((ref) => ids.get(ref) ?? ref),
-        })),
+        questions,
       })
       return testSummary(test)
     },
@@ -156,18 +127,8 @@ export function registerTestTools(tool: Registrar): void {
       },
     },
     async ({ test: ref, results, report }, { workspace, source }) => {
+      // Core validates the whole grading (coverage, score ranges, the verdict rule).
       const test = resolveTest(workspace, ref)
-      if (test.status === "graded")
-        throw new Easy30Error("conflict", `Test "${test.title}" is already graded`)
-      validateResults(test, results)
-      for (const r of results) {
-        if (r.verdict === "correct" && !(r.answer_correct && r.reasoning_correct)) {
-          throw new Easy30Error(
-            "invalid",
-            `Question "${r.question_id}": verdict "correct" requires both answer_correct and reasoning_correct`,
-          )
-        }
-      }
       const graded = await workspace.gradeTest({
         testId: test.id,
         source: source(),
