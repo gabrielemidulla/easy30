@@ -1,0 +1,604 @@
+/* Easy30. Everything is scoped under `.easy30-` and uses Obsidian theme variables. */
+
+.easy30-hidden {
+  display: none;
+}
+
+.easy30-muted {
+  color: var(--text-muted);
+}
+
+.easy30-suggest-path {
+  display: block;
+  color: var(--text-faint);
+}
+
+/* ── Views ─────────────────────────────────────────────────────────────── */
+
+.view-content.easy30-view {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.easy30-view > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.easy30-graph {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.easy30-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.easy30-header-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.easy30-spacer {
+  flex: 1 1 auto;
+}
+
+.easy30-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.easy30-issues-badge {
+  color: var(--color-orange);
+  box-shadow: inset 0 0 0 1px var(--color-orange);
+}
+
+.easy30-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.easy30-canvas-loading,
+.easy30-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--size-4-3);
+  height: 100%;
+  padding: var(--size-4-8);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.easy30-empty h2 {
+  margin: 0;
+  color: var(--text-normal);
+}
+
+.easy30-empty p {
+  max-width: 34em;
+  margin: 0;
+}
+
+.easy30-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-4);
+}
+
+/* ── Legend ────────────────────────────────────────────────────────────── */
+
+.easy30-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1) var(--size-4-4);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.easy30-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-2-2);
+}
+
+.easy30-legend-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.easy30-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-s);
+  border: 2px solid var(--text-faint);
+  background: var(--background-primary);
+  box-sizing: border-box;
+}
+
+.easy30-swatch.is-red {
+  border-color: var(--color-red);
+  background: color-mix(in srgb, var(--color-red) 22%, var(--background-primary));
+}
+
+.easy30-swatch.is-orange {
+  border-color: var(--color-orange);
+  background: color-mix(in srgb, var(--color-orange) 22%, var(--background-primary));
+}
+
+.easy30-swatch.is-green {
+  border-color: var(--color-green);
+  background: color-mix(in srgb, var(--color-green) 22%, var(--background-primary));
+}
+
+.easy30-swatch.is-dashed {
+  border-style: dashed;
+}
+
+.easy30-swatch.is-ring {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+}
+
+/* ── React Flow theming (variables are read by React Flow's own stylesheet) ── */
+
+.easy30-flow.react-flow {
+  --xy-background-color: var(--background-primary);
+  --xy-background-pattern-color: var(--background-modifier-border);
+  --xy-edge-stroke: var(--text-faint);
+  --xy-edge-stroke-selected: var(--interactive-accent);
+  --xy-edge-stroke-width: 1.5;
+  --xy-connectionline-stroke: var(--interactive-accent);
+  --xy-handle-background-color: var(--interactive-accent);
+  --xy-handle-border-color: var(--background-primary);
+  --xy-controls-button-background-color: var(--background-secondary);
+  --xy-controls-button-background-color-hover: var(--background-modifier-hover);
+  --xy-controls-button-color: var(--text-normal);
+  --xy-controls-button-border-color: var(--background-modifier-border);
+  --xy-controls-box-shadow: var(--shadow-s);
+  --xy-attribution-background-color: transparent;
+  font-family: var(--font-interface);
+}
+
+.easy30-flow-wrap {
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.easy30-flow .react-flow__attribution a {
+  color: var(--text-faint);
+}
+
+.easy30-flow .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.easy30-flow .easy30-edge .react-flow__edge-path {
+  transition: stroke 0.12s ease, opacity 0.12s ease;
+}
+
+.easy30-flow .easy30-edge.is-highlighted .react-flow__edge-path,
+.easy30-flow .easy30-edge.is-selected .react-flow__edge-path {
+  stroke: var(--interactive-accent);
+  stroke-width: 2.25;
+}
+
+.easy30-flow .easy30-edge.is-dimmed {
+  opacity: 0.25;
+}
+
+.easy30-flow .react-flow__edge-interaction {
+  cursor: pointer;
+}
+
+/* ── Concept node ──────────────────────────────────────────────────────── */
+
+.easy30-node {
+  position: relative;
+  box-sizing: border-box;
+  width: 188px;
+  height: 56px;
+  padding: var(--size-2-3) var(--size-4-2);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--size-2-1);
+  border: 2px solid var(--text-faint);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  transition: opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+.easy30-node:hover {
+  box-shadow: var(--shadow-s);
+}
+
+.easy30-node.is-red {
+  border-color: var(--color-red);
+  background: color-mix(in srgb, var(--color-red) 14%, var(--background-primary));
+}
+
+.easy30-node.is-orange {
+  border-color: var(--color-orange);
+  background: color-mix(in srgb, var(--color-orange) 14%, var(--background-primary));
+}
+
+.easy30-node.is-green {
+  border-color: var(--color-green);
+  background: color-mix(in srgb, var(--color-green) 14%, var(--background-primary));
+}
+
+.easy30-node.is-inferred {
+  border-style: dashed;
+}
+
+.easy30-node.is-ready {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+}
+
+.easy30-node.is-external {
+  opacity: 0.6;
+}
+
+.easy30-node.is-dimmed {
+  opacity: 0.25;
+}
+
+.easy30-node-title {
+  font-weight: var(--font-medium);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.easy30-node-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.easy30-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.easy30-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--background-modifier-border-hover);
+}
+
+.easy30-dot.is-on {
+  background: var(--text-muted);
+}
+
+.easy30-node-course,
+.easy30-node-tag {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.easy30-due-badge {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  padding: 0 var(--size-4-2);
+  border-radius: var(--radius-l);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  line-height: 16px;
+}
+
+.easy30-flow .easy30-handle.react-flow__handle {
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.easy30-node:hover .easy30-handle.react-flow__handle,
+.easy30-flow .easy30-handle.react-flow__handle.connectingfrom,
+.easy30-flow .easy30-handle.react-flow__handle.connectingto {
+  opacity: 1;
+}
+
+/* ── Issues modal ──────────────────────────────────────────────────────── */
+
+.easy30-issues-list {
+  margin: 0;
+  padding-left: var(--size-4-5);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.easy30-issues-list li {
+  margin-bottom: var(--size-4-2);
+}
+
+.easy30-issue-message {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+/* ── Study ─────────────────────────────────────────────────────────────── */
+
+.easy30-study {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--size-4-6) var(--size-4-4);
+  overflow-y: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.easy30-study-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+}
+
+.easy30-progress {
+  height: 6px;
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.easy30-progress-fill {
+  height: 100%;
+  background: var(--interactive-accent);
+  transition: width 0.2s ease;
+}
+
+.easy30-progress-text {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.easy30-hint {
+  margin-left: auto;
+  padding: 0 var(--size-4-2);
+  border-radius: var(--radius-l);
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
+.easy30-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  margin-top: var(--size-4-3);
+  padding: var(--size-4-5);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  background: var(--background-secondary);
+}
+
+.easy30-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+}
+
+.easy30-card-title {
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+}
+
+.easy30-link-button {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  height: auto;
+  padding: var(--size-2-1) var(--size-4-1);
+}
+
+.easy30-card-question {
+  font-size: var(--font-text-size);
+}
+
+.easy30-card-answer {
+  padding-top: var(--size-4-3);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.easy30-section-label {
+  margin-bottom: var(--size-4-1);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.easy30-markdown > :first-child {
+  margin-top: 0;
+}
+
+.easy30-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.easy30-answer-input {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--font-text);
+}
+
+.easy30-reveal {
+  align-self: center;
+  margin-top: var(--size-4-2);
+}
+
+.easy30-study kbd {
+  margin-left: var(--size-4-2);
+  padding: 0 var(--size-4-1);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  background: var(--background-primary);
+}
+
+.easy30-ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-2);
+}
+
+.easy30-rating {
+  flex: 1 1 0;
+  min-width: 96px;
+  height: auto;
+  padding: var(--size-4-2) var(--size-4-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 3px solid var(--text-faint);
+}
+
+.easy30-rating.is-red {
+  border-bottom-color: var(--color-red);
+}
+
+.easy30-rating.is-orange {
+  border-bottom-color: var(--color-orange);
+}
+
+.easy30-rating.is-green {
+  border-bottom-color: var(--color-green);
+}
+
+.easy30-rating.is-blue {
+  border-bottom-color: var(--color-blue);
+}
+
+.easy30-rating.is-suggested {
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+.easy30-ai-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-3);
+  font-size: var(--font-ui-smaller);
+}
+
+.easy30-grading {
+  padding: var(--size-4-3);
+  border-left: 3px solid var(--text-faint);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+}
+
+.easy30-grading.is-correct {
+  border-left-color: var(--color-green);
+}
+
+.easy30-grading.is-partial {
+  border-left-color: var(--color-orange);
+}
+
+.easy30-grading.is-incorrect {
+  border-left-color: var(--color-red);
+}
+
+.easy30-grading-verdict {
+  font-weight: var(--font-semibold);
+}
+
+.easy30-grading p,
+.easy30-grading ul {
+  margin: var(--size-4-1) 0 0;
+}
+
+.easy30-finish {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--size-4-3);
+  margin-top: var(--size-4-8);
+  text-align: center;
+}
+
+.easy30-finish h2,
+.easy30-finish p {
+  margin: 0;
+}
+
+.easy30-mastery-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--size-4-2);
+  width: 100%;
+  max-width: 420px;
+}
+
+.easy30-mastery-bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  background: var(--background-modifier-border);
+}
+
+.easy30-mastery-seg {
+  flex-basis: 0;
+  background: var(--text-faint);
+}
+
+.easy30-mastery-seg.is-red {
+  background: var(--color-red);
+}
+
+.easy30-mastery-seg.is-orange {
+  background: var(--color-orange);
+}
+
+.easy30-mastery-seg.is-green {
+  background: var(--color-green);
+}
+
+.easy30-finish-actions {
+  display: flex;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-2);
+}
+
+ul.easy30-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
