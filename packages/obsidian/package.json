@@ -1,0 +1,27 @@
+{
+  "name": "easy30-obsidian",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Easy30 Obsidian plugin",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@easy30/core": "workspace:*",
+    "@xyflow/react": "^13.0.2",
+    "elkjs": "^0.12.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.28.2",
+    "obsidian": "^1.14.4"
+  }
+}
