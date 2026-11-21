@@ -1,0 +1,10 @@
+{
+  "id": "easy30",
+  "name": "Easy30",
+  "version": "0.1.0",
+  "minAppVersion": "1.8.7",
+  "description": "Study by concept graph: map prerequisites, skim what you know, and review with spaced repetition.",
+  "author": "Gabriele P. Midulla",
+  "authorUrl": "https://github.com/gabrielemidulla",
+  "isDesktopOnly": false
+}
