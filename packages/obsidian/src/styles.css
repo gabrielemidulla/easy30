@@ -186,7 +186,9 @@
 }
 
 .easy30-flow .easy30-edge .react-flow__edge-path {
-  transition: stroke 0.12s ease, opacity 0.12s ease;
+  transition:
+    stroke 0.12s ease,
+    opacity 0.12s ease;
 }
 
 .easy30-flow .easy30-edge.is-highlighted .react-flow__edge-path,
@@ -221,7 +223,9 @@
   color: var(--text-normal);
   font-size: var(--font-ui-small);
   cursor: pointer;
-  transition: opacity 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .easy30-node:hover {
